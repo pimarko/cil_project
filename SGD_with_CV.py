@@ -105,7 +105,6 @@ else:
     print "Data loaded from files"
 
 #do a CV
-rand_ids = np.random.choice(range(0,len(training_ids)), size=NMB_OF_TRAINING_ITERATIONS)
 
 reg_terms = np.linspace(0, 1, num=REG_LINSPACE_SIZE)
 kSpace = np.linspace(1, BEST_K, num=K_LINSPACE_SIZE).astype(int)
@@ -119,19 +118,25 @@ for i in range(0,len(reg_terms)):
         U = np.random.rand(1000,kSpace[k])
         Z = np.random.rand(10000,kSpace[k])
 
-        j = 1 #initialization to zero will result in devide by zero 
-        for rand_idx in rand_ids:
-            training_id = training_ids[rand_idx]
-            nz_item = training_id[0]
-            d = nz_item[0]
-            n = nz_item[1]
-            rating = nz_item[2]
+        #j = 1 #initialization to zero will result in devide by zero
+        validate_err_curr = np.inf
+        validate_err_prev = np.inf 
+        while (validate_err_prev  >= validate_err_curr):
+        	rand_idx = np.random.choice(range(0,len(training_ids)), size=1)[0]
+        	training_id = training_ids[rand_idx]
+         	nz_item = training_id[0]
+           	d = nz_item[0]
+           	n = nz_item[1]
+           	rating = nz_item[2]
             
-            U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],0.01, reg_term)
+           	U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],0.01, reg_term)
 
-            if (np.mod(j,500000) == 0):
-                print j
-            j = j + 1
+            #if (np.mod(j,500000) == 0):
+             #   print j
+            #j = j + 1
+           	prediction_matrix = np.dot(U,Z.T)
+           	validate_err_prev = validate_err_curr
+           	validate_err_curr = irmse(prediction_matrix,validation_ids)
 
         print "Optimization done."
 
