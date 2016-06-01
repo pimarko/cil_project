@@ -109,7 +109,6 @@ for i in range(0,len(reg_terms)):
     U = np.random.rand(1000,BEST_K)
     Z = np.random.rand(10000,BEST_K)
     Z = Z.T
-    i = 0
 
     if (np.any(np.isnan(U))):
         print "U has nan entries"
