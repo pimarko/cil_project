@@ -141,4 +141,5 @@ for i in range(0,len(reg_terms)):
     print "The overall RMSE prediction error for selected " + str(BEST_K) + " optimized singular values and reg_term " + str(reg_term) +" is: " + str(mses[i])
 
 plt.plot(reg_terms, mses)
+plt.show()
 np.savetxt('mses.out', mses, delimiter=',') 
