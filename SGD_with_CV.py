@@ -8,9 +8,10 @@ import sys
 import random
 import os.path
 
-BEST_K = 8
+BEST_K = 15
 NMB_OF_TRAINING_ITERATIONS = 10000000
-LINSPACE_SIZE = 10
+REG_LINSPACE_SIZE = 3
+K_LINSPACE_SIZE = 5
 
 def irmse(predicted_matrix,validation_ids):
     num_of_items = len(validation_ids)
@@ -27,16 +28,14 @@ def irmse(predicted_matrix,validation_ids):
     return np.sqrt(error/num_of_items)
 
 def sgd(x_dn,u_d,z_n,stepsize, reg_term):
-    #stepsize to be set
-    #z_n size is k*1
-    #u_d size is 1*k
+    dotProd = np.dot(u_d,z_n)
 
-    grad_u_d = np.dot(x_dn - np.dot(u_d,z_n),z_n.T) + reg_term*np.sum(np.abs(u_d))
+    grad_u_d = -(x_dn-dotProd)*z_n + 2*reg_term*u_d
     if (np.any(np.isnan(grad_u_d))):
         print x_dn, u_d, z_n
         sys.exit()
 
-    grad_z_n = np.dot((x_dn - np.dot(u_d,z_n)),u_d.T) + reg_term*np.sum(np.abs(z_n))
+    grad_z_n = -(x_dn-dotProd)*u_d + 2*reg_term*z_n
 
     u_d = u_d - stepsize*grad_u_d
     z_n = z_n - stepsize*grad_z_n
@@ -107,45 +106,53 @@ else:
     print "Data loaded from files"
 
 #do a CV
-reg_terms = np.linspace(0, 1, num=LINSPACE_SIZE)
-mses = np.zeros(len(reg_terms))
-for i in range(0,len(reg_terms)):
-    reg_term = reg_terms[i]
+rand_ids = np.random.choice(range(0,len(training_ids)), size=NMB_OF_TRAINING_ITERATIONS)
 
-    #numbers grow to big!!! -> nan in the solution!
-    U = np.random.rand(1000,BEST_K)
-    Z = np.random.rand(10000,BEST_K)
-    Z = Z.T
+reg_terms = np.linspace(0, 1, num=REG_LINSPACE_SIZE)
+kSpace = np.linspace(3, 40, num=K_LINSPACE_SIZE).astype(int)
+print kSpace
 
-    if (np.any(np.isnan(U))):
-        print "U has nan entries"
+mses = np.zeros((len(kSpace),len(reg_terms)))
+for k in range(0,len(kSpace)):
+    for i in range(0,len(reg_terms)):
+        reg_term = reg_terms[i]
 
-    if (np.any(np.isnan(Z))):
-        "Z has nan entries"
+        #numbers grow to big!!! -> nan in the solution!
+        U = np.random.rand(1000,kSpace[k])
+        Z = np.random.rand(10000,kSpace[k])
 
-    j = 1 #initialization to zero will result in devide by zero 
-    rand_ids = np.random.choice(range(0,len(training_ids)), size=NMB_OF_TRAINING_ITERATIONS)
-    for rand_idx in rand_ids:
-        training_id = training_ids[rand_idx]
-        nz_item = training_id[0]
-        d = nz_item[0]
-        n = nz_item[1]
-        rating = nz_item[2]
+        j = 1 #initialization to zero will result in devide by zero 
+        for rand_idx in rand_ids:
+            training_id = training_ids[rand_idx]
+            nz_item = training_id[0]
+            d = nz_item[0]
+            n = nz_item[1]
+            rating = nz_item[2]
             
-        U[d,:],Z[:,n] = sgd(rating,U[d,:],Z[:,n],1/j, reg_term)
+            U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],0.001, reg_term)
 
-        if (np.mod(j,200000) == 0):
-            print j
-        j = j + 1
+            if (np.mod(j,500000) == 0):
+                print j
+            j = j + 1
 
-    print "Optimization done."
+        print "Optimization done."
 
 
-    #use the truncated prediction matrix (obtained by the best k singular values observed from the plot)
-    prediction_matrix = np.dot(U,Z)
-    mses[i] = irmse(prediction_matrix,validation_ids)
-    print "The overall RMSE prediction error for selected " + str(BEST_K) + " optimized singular values and reg_term " + str(reg_term) +" is: " + str(mses[i])
+        #use the truncated prediction matrix (obtained by the best k singular values observed from the plot)
+        prediction_matrix = np.dot(U,Z.T)
 
-plt.plot(reg_terms, mses)
-plt.show()
-np.savetxt('mses.out', mses, delimiter=',') 
+        print prediction_matrix
+        print np.min(prediction_matrix), np.max(prediction_matrix), np.mean(prediction_matrix)
+        print len(prediction_matrix[np.where(prediction_matrix < 0)])
+        print len(prediction_matrix[np.where(prediction_matrix > 5)])
+
+        prediction_matrix[np.where(prediction_matrix < 0)] = 0
+        prediction_matrix[np.where(prediction_matrix > 5)] = 5
+        mses[k,i] = irmse(prediction_matrix,validation_ids)
+        print "The overall RMSE prediction error for selected " + str(kSpace[k]) + " optimized singular values and reg_term " + str(reg_term) +" is: " + str(mses[k,i])
+
+
+np.save("mses", mses)
+for k in range(0,len(kSpace)):
+    plt.plot(reg_terms, mses[k,:], color=(col,col,col))
+    plt.show()
