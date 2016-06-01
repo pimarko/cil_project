@@ -100,7 +100,7 @@ print "Number of items in the training set: " + str(np.count_nonzero(train_matri
 #plt.show()
 
 #do a CV
-reg_terms = np.linspace(0, 10, num=LINSPACE_SIZE)
+reg_terms = np.linspace(0, 1, num=LINSPACE_SIZE)
 mses = np.zeros(len(reg_terms))
 for i in range(0,len(reg_terms)):
     reg_term = reg_terms[i]
