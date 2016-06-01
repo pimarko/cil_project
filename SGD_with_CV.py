@@ -10,7 +10,7 @@ import random
 import os.path
 
 BEST_K = 40
-NMB_OF_TRAINING_ITERATIONS = 10000000
+NMB_OF_TRAINING_ITERATIONS = 1000000
 REG_LINSPACE_SIZE = 10
 K_LINSPACE_SIZE = 40
 
@@ -139,12 +139,12 @@ for i in range(0,len(reg_terms)):
         #use the truncated prediction matrix (obtained by the best k singular values observed from the plot)
         prediction_matrix = np.dot(U,Z.T)
 
-        print prediction_matrix
-        print np.min(prediction_matrix), np.max(prediction_matrix), np.mean(prediction_matrix)
-        print len(prediction_matrix[np.where(prediction_matrix < 0)])
-        print len(prediction_matrix[np.where(prediction_matrix > 5)])
+        #print prediction_matrix
+        #print np.min(prediction_matrix), np.max(prediction_matrix), np.mean(prediction_matrix)
+        #print len(prediction_matrix[np.where(prediction_matrix < 0)])
+        #print len(prediction_matrix[np.where(prediction_matrix > 5)])
 
-        prediction_matrix[np.where(prediction_matrix < 0)] = 0
+        prediction_matrix[np.where(prediction_matrix < 1)] = 1
         prediction_matrix[np.where(prediction_matrix > 5)] = 5
         mses[k,i] = irmse(prediction_matrix,validation_ids)
         print "The overall RMSE prediction error for selected " + str(kSpace[k]) + " optimized singular values and reg_term " + str(reg_term) +" is: " + str(mses[k,i])
