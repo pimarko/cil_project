@@ -1,5 +1,6 @@
 import numpy as np
 import csv
+import matplotlib
 from datetime import datetime
 import matplotlib.pyplot as plt
 from numpy.linalg import matrix_rank
@@ -8,10 +9,10 @@ import sys
 import random
 import os.path
 
-BEST_K = 15
+BEST_K = 40
 NMB_OF_TRAINING_ITERATIONS = 10000000
-REG_LINSPACE_SIZE = 3
-K_LINSPACE_SIZE = 5
+REG_LINSPACE_SIZE = 10
+K_LINSPACE_SIZE = 39
 
 def irmse(predicted_matrix,validation_ids):
     num_of_items = len(validation_ids)
@@ -40,8 +41,6 @@ def sgd(x_dn,u_d,z_n,stepsize, reg_term):
     u_d = u_d - stepsize*grad_u_d
     z_n = z_n - stepsize*grad_z_n
 
-    #returned are u_d of size 1*k 
-    #z_n of size k*1
     return u_d,z_n
 
 
@@ -109,15 +108,14 @@ else:
 rand_ids = np.random.choice(range(0,len(training_ids)), size=NMB_OF_TRAINING_ITERATIONS)
 
 reg_terms = np.linspace(0, 1, num=REG_LINSPACE_SIZE)
-kSpace = np.linspace(3, 40, num=K_LINSPACE_SIZE).astype(int)
-print kSpace
+kSpace = np.linspace(1, BEST_K, num=K_LINSPACE_SIZE).astype(int)
 
 mses = np.zeros((len(kSpace),len(reg_terms)))
-for k in range(0,len(kSpace)):
-    for i in range(0,len(reg_terms)):
-        reg_term = reg_terms[i]
-
-        #numbers grow to big!!! -> nan in the solution!
+#for each reg. param go through all possible best k's and plot for rmse-k curve for each reg-param
+for i in range(0,len(reg_terms)):
+    reg_term = reg_terms[i]
+    for k in range(0,len(kSpace)):
+  
         U = np.random.rand(1000,kSpace[k])
         Z = np.random.rand(10000,kSpace[k])
 
@@ -129,7 +127,7 @@ for k in range(0,len(kSpace)):
             n = nz_item[1]
             rating = nz_item[2]
             
-            U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],0.001, reg_term)
+            U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],0.01, reg_term)
 
             if (np.mod(j,500000) == 0):
                 print j
@@ -152,7 +150,16 @@ for k in range(0,len(kSpace)):
         print "The overall RMSE prediction error for selected " + str(kSpace[k]) + " optimized singular values and reg_term " + str(reg_term) +" is: " + str(mses[k,i])
 
 
+colors = []
+for name, hex in matplotlib.colors.cnames.iteritems():
+	colors.append(str(name))
+
 np.save("mses", mses)
-for k in range(0,len(kSpace)):
-    plt.plot(reg_terms, mses[k,:], color=(col,col,col))
-    plt.show()
+for reg_term in range(0,len(reg_terms)):
+    plt.plot(kSpace, mses[:,reg_term],c = colors[reg_term])
+
+
+plt.xlabel('best k selected')
+plt.ylabel('rmse')
+plt.title('relation between the number of k sing. values selected and the rmse given the regularization parameter')
+plt.show()
