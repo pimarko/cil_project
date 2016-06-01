@@ -43,6 +43,24 @@ def sgd(x_dn,u_d,z_n,stepsize, reg_term):
 
     return u_d,z_n
 
+def sgdBatch(x_dn,u_d,z_n,stepsize, reg_term):
+    batchSize = len(x_dn)
+    
+    for i in range(0,batchSize):
+        dotProd = np.dot(u_d[i],z_n[i])
+
+        grad_u_d += -(x_dn[i]-dotProd)*z_n[i] + 2*reg_term*u_d[i]
+
+        grad_z_n += -(x_dn[i]-dotProd)*u_d[i] + 2*reg_term*z_n[i]
+
+    grad_u_d /= batchSize
+    grad_z_n /= batchSize
+
+    u_d = u_d - stepsize*grad_u_d
+    z_n = z_n - stepsize*grad_z_n
+
+    return u_d,z_n
+
 
 if (not os.path.isfile("training_ids.npy") or not os.path.isfile("validation_ids.npy") or not os.path.isfile("test_ids.npy")):
     #data loading

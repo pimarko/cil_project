@@ -9,10 +9,10 @@ import sys
 import random
 import os.path
 
-BEST_K = 40
+BEST_K = 30
 NMB_OF_TRAINING_ITERATIONS = 1000000
-REG_LINSPACE_SIZE = 10
-K_LINSPACE_SIZE = 40
+REG_LINSPACE_SIZE = 1
+K_LINSPACE_SIZE = 30
 
 def irmse(predicted_matrix,validation_ids):
     num_of_items = len(validation_ids)
@@ -118,26 +118,27 @@ for i in range(0,len(reg_terms)):
         U = np.random.rand(1000,kSpace[k])
         Z = np.random.rand(10000,kSpace[k])
 
-        #j = 1 #initialization to zero will result in devide by zero
+        j = 0
         validate_err_curr = np.inf
         validate_err_prev = np.inf 
         while (validate_err_prev  >= validate_err_curr):
-        	rand_idx = np.random.choice(range(0,len(training_ids)), size=1)[0]
-        	training_id = training_ids[rand_idx]
-         	nz_item = training_id[0]
-           	d = nz_item[0]
-           	n = nz_item[1]
-           	rating = nz_item[2]
+            rand_idx = np.random.choice(range(0,len(training_ids)), size=1)[0]
+            training_id = training_ids[rand_idx]
+            nz_item = training_id[0]
+            d = nz_item[0]
+            n = nz_item[1]
+            rating = nz_item[2]
             
-           	U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],0.01, reg_term)
+            U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],0.01, reg_term)
 
-            #if (np.mod(j,500000) == 0):
-             #   print j
-            #j = j + 1
-           	prediction_matrix = np.dot(U,Z.T)
-           	validate_err_prev = validate_err_curr
-           	validate_err_curr = irmse(prediction_matrix,validation_ids)
+            if (np.mod(j,10000) == 0):
+                print j
+            j = j + 1
+            prediction_matrix = np.dot(U,Z.T)
+            validate_err_prev = validate_err_curr
+            validate_err_curr = irmse(prediction_matrix,validation_ids)
 
+        print "stopped at iteration", j
         print "Optimization done."
 
 
@@ -157,12 +158,12 @@ for i in range(0,len(reg_terms)):
 
 colors = []
 for name, hex in matplotlib.colors.cnames.iteritems():
-	colors.append(str(name))
+    colors.append(str(name))
 
 np.save("mses", mses)
 for reg_term in range(0,len(reg_terms)):
-	labeling = 'reg. ' + str(reg_terms[reg_term]) 
-	plt.plot(kSpace, mses[:,reg_term],c = colors[reg_term],label=labeling)
+    labeling = 'reg. ' + str(reg_terms[reg_term]) 
+    plt.plot(kSpace, mses[:,reg_term],c = colors[reg_term],label=labeling)
 
 
 plt.xlabel('best k selected')
