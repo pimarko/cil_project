@@ -12,7 +12,7 @@ import os.path
 BEST_K = 40
 NMB_OF_TRAINING_ITERATIONS = 10000000
 REG_LINSPACE_SIZE = 10
-K_LINSPACE_SIZE = 39
+K_LINSPACE_SIZE = 40
 
 def irmse(predicted_matrix,validation_ids):
     num_of_items = len(validation_ids)
@@ -156,10 +156,12 @@ for name, hex in matplotlib.colors.cnames.iteritems():
 
 np.save("mses", mses)
 for reg_term in range(0,len(reg_terms)):
-    plt.plot(kSpace, mses[:,reg_term],c = colors[reg_term])
+	labeling = 'reg. ' + str(reg_terms[reg_term]) 
+	plt.plot(kSpace, mses[:,reg_term],c = colors[reg_term],label=labeling)
 
 
 plt.xlabel('best k selected')
 plt.ylabel('rmse')
+plt.legend()
 plt.title('relation between the number of k sing. values selected and the rmse given the regularization parameter')
 plt.show()
