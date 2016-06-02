@@ -10,8 +10,9 @@ import random
 import os.path
 
 BEST_K = 5
-NMB_OF_TRAINING_ITERATIONS = 10000000
-LEARNING_RATE = 0.001
+NMB_OF_TRAINING_ITERATIONS = 1000000
+LEARNING_RATE = 0.01
+BATCH_SIZE = 3
 SUBMISSION_FILENAME = "mySubmission.csv"
 
 def irmse(predicted_matrix,validation_ids):
@@ -45,19 +46,22 @@ def sgd(x_dn,u_d,z_n,stepsize, reg_term):
 
 def sgdBatch(x_dn,u_d,z_n,stepsize, reg_term):
     batchSize = len(x_dn)
+    grad_u_d = np.zeros((1,u_d.shape[1]))
+    grad_z_n = np.zeros((1,u_d.shape[1]))
     
     for i in range(0,batchSize):
-        dotProd = np.dot(u_d[i],z_n[i])
+        dotProd = np.dot(u_d[i,:],z_n[i,:])
 
-        grad_u_d += -(x_dn[i]-dotProd)*z_n[i] + 2*reg_term*u_d[i]
+        grad_u_d += -(x_dn[i]-dotProd)*z_n[i,:] + 2*reg_term*u_d[i,:]
 
-        grad_z_n += -(x_dn[i]-dotProd)*u_d[i] + 2*reg_term*z_n[i]
+        grad_z_n += -(x_dn[i]-dotProd)*u_d[i,:] + 2*reg_term*z_n[i,:]
 
     grad_u_d /= batchSize
     grad_z_n /= batchSize
 
-    u_d = u_d - stepsize*grad_u_d
-    z_n = z_n - stepsize*grad_z_n
+    for i in range(0,batchSize):
+        u_d[i,:] = u_d[i,:] - stepsize*grad_u_d
+        z_n[i,:] = z_n[i,:] - stepsize*grad_z_n
 
     return u_d,z_n
 
@@ -130,15 +134,39 @@ rand_ids = np.random.choice(range(0,len(training_ids)), size=NMB_OF_TRAINING_ITE
 U = np.random.rand(1000,BEST_K)
 Z = np.random.rand(10000,BEST_K)
 
-j = 1 #initialization to zero will result in devide by zero 
+j = 1
+curSize = 0
+ratings = np.zeros(BATCH_SIZE)
+user_ids = np.zeros(BATCH_SIZE)
+movie_ids = np.zeros(BATCH_SIZE)
+users = np.zeros((BATCH_SIZE, BEST_K))
+movies = np.zeros((BATCH_SIZE, BEST_K))
 for rand_idx in rand_ids:
     training_id = training_ids[rand_idx]
     nz_item = training_id[0]
-    d = nz_item[0]
-    n = nz_item[1]
-    rating = nz_item[2]
     
-    U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],LEARNING_RATE, 0)
+    user_ids[curSize] = nz_item[0]
+    users[curSize, :] = U[nz_item[0],:]
+    movie_ids[curSize] = nz_item[1]
+    movies[curSize,:] = Z[nz_item[1],:]
+    ratings[curSize] = nz_item[2]
+    curSize += 1
+    #print curSize
+
+    if (curSize >= BATCH_SIZE):
+        users, movies = sgdBatch(ratings,users,movies,LEARNING_RATE, 0)
+        #print np.sum(np.abs(users-movies))
+
+        #update users/movies
+        for i in range(0, BATCH_SIZE):
+            U[i,:] = users[i,:]
+            Z[i,:] = movies[i,:]
+        
+        curSize = 0
+        ratings = np.zeros(BATCH_SIZE)
+        users = np.zeros((BATCH_SIZE, BEST_K))
+        movies = np.zeros((BATCH_SIZE, BEST_K))
+    
 
     if (np.mod(j,500000) == 0):
         print j
