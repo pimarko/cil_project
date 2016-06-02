@@ -17,6 +17,9 @@ SIGMA = 0.2
 SUBMISSION_FILENAME = "mySubmission.csv"
 
 
+def getKey(item):
+    return item[1]
+
 def getUserDistance(userA, userB):
     return np.linalg.norm(userA-userB, ord=2)
 
@@ -238,19 +241,22 @@ for k in range(0,len(test_ids)):
     testing_ids.append([(i,j)])
 
 prediction_indices = zip(item_predict_index,user_predict_index)
+sorted_prediction_indices = sorted(prediction_indices, key=getKey)
 
 ############################
 #do NN stuff
 ############################
 #find the predictions
 counter = 1
+prevMovieIdx = -1
 predictions = []
-for prediction_index in prediction_indices:
+for prediction_index in sorted_prediction_indices:
     userIdx = prediction_index[0]
     movieIdx = prediction_index[1]
     
     currentUser = U[userIdx,:]
-    compare_ids = np.where(training_ids[:,0,1] == movieIdx)[0]
+    if (movieIdx != prevMovieIdx):
+        compare_ids = np.where(training_ids[:,0,1] == movieIdx)[0]
     
     weights = np.zeros(len(compare_ids))
     for i in range(0,len(compare_ids)):
@@ -272,6 +278,9 @@ for prediction_index in prediction_indices:
         final_rating += weights[i]*rating
 
     predictions.append(min(5,max(1,final_rating)))
+
+    prevMovieIdx = movieIdx
+
     counter += 1
     if (np.mod(counter, 1000) == 0):
         print counter
