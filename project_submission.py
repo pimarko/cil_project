@@ -29,7 +29,8 @@ SEED_NUM:
 Seed num set to avoid stochastic nature of the optimization.
 
 LEARNING RATE:
-Learning rate is set fixed to 0.001. Due to potential overshooting of the minimum or too slow convergence, it might be dynamically adapted. 
+Learning rate is set fixed to 0.001. Due to potential overshooting of the minimum or too slow convergence, it might be dynamically adapted. We observe the
+validation error and well as training error behaviour to be ably to abort early. 
 
 REGULARIZATION_TERM:
 Set to 0. We want to obtain the user-concept matrix and then perform dimension reduction and clustering on it.
@@ -46,7 +47,7 @@ BEST_K = 10
 DO_PCA = True
 K = 1000
 LEARNING_RATE = 0.001
-NMB_OF_TRAINING_ITERATIONS = 10000000
+NMB_OF_TRAINING_ITERATIONS = 20000000
 SEED_NUM = 500
 REGULARIZATION_TERM = 0
 EPS = 0.1
