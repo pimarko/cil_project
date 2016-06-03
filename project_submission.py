@@ -47,7 +47,7 @@ BEST_K = 10
 DO_PCA = True
 K = 100
 LEARNING_RATE = 0.001
-NMB_OF_TRAINING_ITERATIONS = 1000000
+NMB_OF_TRAINING_ITERATIONS = 100000000
 SEED_NUM = 500
 REGULARIZATION_TERM = 0
 EPS = 0.1
@@ -176,7 +176,7 @@ for rand_idx in range(len(rand_ids)):
         training_err_prev = training_err_curr
         training_err_curr = irmse(prediction_matrix,training_ids)
         if(training_err_prev < training_err_curr or training_err_curr < EPS):
-            print "Training error raising. Early abort."
+            print "Training error raising or achieved minimum. Early abort."
             print "Current training error: " + str(training_err_curr) + "."
             print "Previous training error: " + str(training_err_prev) + "."
             break
