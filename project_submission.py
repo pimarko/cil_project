@@ -22,7 +22,7 @@ BEST_K:
 Set the optimal number of concepts in the data accoriding to the PCA plot obtained. If set, then set DO_PCA = False
 
 NMB_OF_TRAINING_ITERATIONS:
-Number of iterations is set, but the algorithm checks how the training and validation error behave. If the validation error starts to grow, it aborts. 
+Number of iterations is set, but the algorithm checks how the training behaves.
 If the training error achieves EPS error, it aborts (also provide sanity check that training error decreases).
 
 SEED_NUM:
@@ -30,7 +30,7 @@ Seed num set to avoid stochastic nature of the optimization.
 
 LEARNING RATE:
 Learning rate is set fixed to 0.001. Due to potential overshooting of the minimum or too slow convergence, it might be dynamically adapted. We observe the
-validation error and well as training error behaviour to be ably to abort early. 
+training error behaviour to be able to abort early. 
 
 REGULARIZATION_TERM:
 Set to 0. We want to obtain the user-concept matrix and then perform dimension reduction and clustering on it.
@@ -45,9 +45,9 @@ BEST_K = 10
 
 #training
 DO_PCA = True
-K = 1000
+K = 100
 LEARNING_RATE = 0.001
-NMB_OF_TRAINING_ITERATIONS = 2
+NMB_OF_TRAINING_ITERATIONS = 1000000
 SEED_NUM = 500
 REGULARIZATION_TERM = 0
 EPS = 0.1
@@ -159,8 +159,6 @@ U = np.random.rand(1000,K)
 Z = np.random.rand(10000,K)
 
 j = 1
-validate_err_curr = np.inf
-validate_err_prev = np.inf
 training_err_curr = np.inf
 training_err_prev = np.inf
 for rand_idx in range(len(rand_ids)):
@@ -175,15 +173,9 @@ for rand_idx in range(len(rand_ids)):
 
     if (np.mod(j,500000) == 0 or j == 1):
         prediction_matrix = np.dot(U,Z.T)
-        validate_err_prev = validate_err_curr
-        validate_err_curr = irmse(prediction_matrix,validation_ids)
         training_err_prev = training_err_curr
         training_err_curr = irmse(prediction_matrix,training_ids)
-        if(validate_err_prev  < validate_err_curr or training_err_prev < training_err_curr or training_err_curr < EPS):
-            print "Validation error raising. Early abort."
-            print "Current validation error: " + str(validate_err_curr) + "."
-            print "Previous validation error: " + str(validate_err_prev) + "."
-
+        if(training_err_prev < training_err_curr or training_err_curr < EPS):
             print "Training error raising. Early abort."
             print "Current training error: " + str(training_err_curr) + "."
             print "Previous training error: " + str(training_err_prev) + "."
