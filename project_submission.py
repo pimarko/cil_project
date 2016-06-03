@@ -47,7 +47,7 @@ BEST_K = 10
 DO_PCA = True
 K = 1000
 LEARNING_RATE = 0.001
-NMB_OF_TRAINING_ITERATIONS = 20000000
+NMB_OF_TRAINING_ITERATIONS = 2
 SEED_NUM = 500
 REGULARIZATION_TERM = 0
 EPS = 0.1
@@ -198,7 +198,8 @@ print "Optimization done."
 #pca algorithm
 if(DO_PCA):
     pca = PCA(n_components=K)
-    pca.fit(Z)
+    centered_Z = Z-Z.mean(axis=0)
+    pca.fit(centered_Z)
     plt.plot(pca.explained_variance_)
     plt.xlabel('K')
     plt.ylabel('Variance explained')
