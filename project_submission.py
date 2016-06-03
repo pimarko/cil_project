@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import sys
 import random
 import os.path
-from sklearn.decomposition import PCA
+import matplotlib
 
 """
 GENERATE_SUBMISSION:
@@ -16,7 +16,8 @@ GRID_SEARCH:
 Set to true if still in search for the optimal number of concepts in our data. Produces a plot and the code exits right after.
 
 K:
-Number of concepts for low rank approximation of the data matrix using the incremental SVD. Max. K is 1000, as we have data matrix of rank 1000.
+Number of concepts to check in the grid search for low rank approximation of the data matrix using the incremental SVD. 
+Max. K is 1000, as we have data matrix of rank 1000.
 
 BEST_K:
 Set the optimal number of concepts in the data according to the grid search plot obtained and set GENERATE_SUBMISSION to True.
@@ -33,7 +34,10 @@ Learning rate is set fixed to 0.001. Due to potential overshooting of the minimu
 validation error and well as training error behaviour to be ably to abort early. 
 
 REGULARIZATION_TERM:
-Set to 0. We want to obtain the user-concept matrix which dimension is reduced later perform other computation on it.
+Set to optimal one obtained after the grid search.
+
+REG_TERMS:
+Set to number of regularization terms to be tested.
 """
 
 #constants to be adapted
@@ -45,11 +49,12 @@ BEST_K = 10
 
 #training
 GRID_SEARCH = True
-K = 50
+K = 150
 LEARNING_RATE = 0.001
 NMB_OF_TRAINING_ITERATIONS = 20000000
 SEED_NUM = 500
 REGULARIZATION_TERM = 0
+REG_TERMS = 15
 EPS = 0.1
 
 
@@ -151,52 +156,62 @@ else:
 #prepare random draws from data set
 rand_ids = np.random.choice(range(0,len(training_ids)), size=NMB_OF_TRAINING_ITERATIONS)
 
-#grid search for optimal hyperparameter k using sgd algorithm
+#grid search for optimal hyperparameteres k and reg. term using sgd algorithm
 if(GRID_SEARCH):
     k_search = np.linspace(1,K,K).astype(int)
-    rmse = []
-    for k in k_search:
-        U = np.random.rand(1000,k)
-        Z = np.random.rand(10000,k)
-        j = 1
-        validate_err_curr = np.inf
-        validate_err_prev = np.inf
-        training_err_curr = np.inf
-        training_err_prev = np.inf
-        for rand_idx in range(len(rand_ids)):
-            training_id = training_ids[rand_ids[rand_idx]]
-            nz_item = training_id[0]
-            d = nz_item[0]
-            n = nz_item[1]
-            rating = nz_item[2]
-            
-            U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],LEARNING_RATE, REGULARIZATION_TERM)
+    reg_terms = np.linspace(0,1,REG_TERMS)
+    rmse = np.zeros((K,REG_TERMS))
+    for reg_term in range(len(reg_terms)):
+        for k in range(len(k_search)):
+            U = np.random.rand(1000,k_search[k])
+            Z = np.random.rand(10000,k_search[k])
+            j = 1
+            validate_err_curr = np.inf
+            validate_err_prev = np.inf
+            training_err_curr = np.inf
+            training_err_prev = np.inf
+            for rand_idx in range(len(rand_ids)):
+                training_id = training_ids[rand_ids[rand_idx]]
+                nz_item = training_id[0]
+                d = nz_item[0]
+                n = nz_item[1]
+                rating = nz_item[2]
+                
+                U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],LEARNING_RATE, reg_terms[reg_term])
 
 
-            if (np.mod(j,500000) == 0 or j == 1):
-                prediction_matrix = np.dot(U,Z.T)
-                validate_err_prev = validate_err_curr
-                validate_err_curr = irmse(prediction_matrix,validation_ids)
-                training_err_prev = training_err_curr
-                training_err_curr = irmse(prediction_matrix,training_ids)
-                if(validate_err_prev  < validate_err_curr or training_err_prev < training_err_curr or training_err_curr < EPS):
-                    print "Early abort."
-                    print "Current validation error: " + str(validate_err_curr) + "."
-                    print "Previous validation error: " + str(validate_err_prev) + "."
+                if (np.mod(j,500000) == 0 or j == 1):
+                    prediction_matrix = np.dot(U,Z.T)
+                    validate_err_prev = validate_err_curr
+                    validate_err_curr = irmse(prediction_matrix,validation_ids)
+                    training_err_prev = training_err_curr
+                    training_err_curr = irmse(prediction_matrix,training_ids)
+                    if(validate_err_prev  < validate_err_curr or training_err_prev < training_err_curr or training_err_curr < EPS):
+                        print "Early abort."
+                        print "Current validation error: " + str(validate_err_curr) + "."
+                        print "Previous validation error: " + str(validate_err_prev) + "."
 
-                    print "Current training error: " + str(training_err_curr) + "."
-                    print "Previous training error: " + str(training_err_prev) + "."
-                    break
-                else:
-                    print "At iteration: " + str(j) + "."
+                        print "Current training error: " + str(training_err_curr) + "."
+                        print "Previous training error: " + str(training_err_prev) + "."
+                        break
+                    else:
+                        print "At iteration: " + str(j) + "."
 
-            j = j + 1
+                j = j + 1
 
-        prediction_matrix = np.dot(U,Z.T)
-        rmse.append(irmse(prediction_matrix,validation_ids))
-        print "Optimization done."
+            prediction_matrix = np.dot(U,Z.T)
+            rmse[k,reg_term] = irmse(prediction_matrix,validation_ids)
+            print "Optimization done."
 
-    plt.plot(rmse)
+
+    colors = []
+    for name, hex in matplotlib.colors.cnames.iteritems():
+        colors.append(str(name))
+
+    for reg_term in range(0,len(reg_terms)):
+        labeling = 'alpha ' + str(reg_terms[reg_term]) 
+        plt.plot(k_search, rmse[:,reg_term],c = colors[reg_term],label=labeling)
+
     plt.xlabel('K features selected')
     plt.ylabel('RMSE')
     plt.title('Feature selection based on the RMSE using incremental SVD')
