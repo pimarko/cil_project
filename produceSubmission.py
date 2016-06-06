@@ -11,12 +11,14 @@ import os.path
 from math import sqrt,pi,exp
 
 BEST_K = 5
-NMB_OF_TRAINING_ITERATIONS = 2000
+NMB_OF_TRAINING_ITERATIONS = 20000000
 LEARNING_RATE = 0.001
 SIGMA = 0.1
-SUBMISSION_FILENAME = "test.csv"
+SUBMISSION_FILENAME = "K1_submission.csv"
 USE_VALIDATION_SET = False
 SHOW_RATING_STATS = True
+DO_LINEAR_COMBINATION_TEST = True
+TAKE_MIN_DIST_RATING = False
 
 np.random.seed(500)
 
@@ -24,12 +26,12 @@ def getKey(item):
     return item[0]
 
 def getUserDistance(userA, usersB):
-    #normUserA = np.linalg.norm(userA, ord=2)
-    #normsUsersB = np.linalg.norm(usersB, ord=2, axis=1)
-    #unnormalized = np.divide(np.dot(usersB, userA), normUserA)
+    normUserA = np.linalg.norm(userA, ord=2)
+    normsUsersB = np.linalg.norm(usersB, ord=2, axis=1)
+    unnormalized = np.divide(np.dot(usersB, userA), normUserA)
 
-    #return 1 - np.abs(np.divide(unnormalized, normsUsersB));
-    return np.linalg.norm(usersB.T - userA[:,None], ord=2, axis=0)
+    return 1 - np.abs(np.divide(unnormalized, normsUsersB));
+    #return np.linalg.norm(usersB.T - userA[:,None], ord=2, axis=0)
 
 def dnorm(X,mu=0,sigma=1.5):
     """
@@ -192,26 +194,33 @@ else:
     #plt.show()
 
 
-rand_ids = np.random.choice(range(0,len(training_ids)), size=NMB_OF_TRAINING_ITERATIONS)
- 
-U = np.random.rand(1000,BEST_K)
-Z = np.random.rand(10000,BEST_K)
+if (not os.path.isfile("U.npy") or not os.path.isfile("Z.npy")):
+    rand_ids = np.random.choice(range(0,len(training_ids)), size=NMB_OF_TRAINING_ITERATIONS)
+     
+    U = np.random.rand(1000,BEST_K)
+    Z = np.random.rand(10000,BEST_K)
 
-j = 1 #initialization to zero will result in devide by zero 
-for rand_idx in rand_ids:
-    training_id = training_ids[rand_idx]
-    nz_item = training_id[0]
-    d = nz_item[0]
-    n = nz_item[1]
-    rating = nz_item[2]
-    
-    U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],LEARNING_RATE, 0)
+    j = 1 #initialization to zero will result in devide by zero 
+    for rand_idx in rand_ids:
+        training_id = training_ids[rand_idx]
+        nz_item = training_id[0]
+        d = nz_item[0]
+        n = nz_item[1]
+        rating = nz_item[2]
+        
+        U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],LEARNING_RATE, 0)
 
-    if (np.mod(j,500000) == 0):
-        print j
-    j = j + 1
+        if (np.mod(j,500000) == 0):
+            print j
+        j = j + 1
 
-print "Optimization done."
+    np.save("U", U)
+    np.save("Z", Z)
+    print "Optimization done."
+else:
+    U = np.load("U.npy")
+    Z = np.load("Z.npy")
+    print "U and Z from files"
 
 
 #use the truncated prediction matrix (obtained by the best k singular values observed from the plot)
@@ -233,10 +242,60 @@ if (SHOW_RATING_STATS):
     print "The mean observed rating is", np.mean(ratings)
     for i in range(1,6):
         print "Rating", i, "was observed", len(np.where(ratings == i)[0]), "times"
-    sys.exit()
 
-#compute validation score
-#how?!?
+if (DO_LINEAR_COMBINATION_TEST):
+    #compute linearly combined validation score
+    firstLoop = True
+    final_ratings = []
+    errors = []
+    predictions = np.zeros((1000,10000))
+    for alpha in np.linspace(0, 1, 101):
+        counter = 0
+        prevMovieIdx = -1
+        for prediction_index in validation_ids:
+            movieIdx = prediction_index[0][0]
+            userIdx = prediction_index[0][1]
+
+            if (firstLoop):
+                currentUser = Z[userIdx,:]
+
+                if (movieIdx != prevMovieIdx):
+                    compare_ids = np.where(training_ids[:,0,0] == movieIdx)[0]
+                    idx = training_ids[compare_ids,0,1]
+                    compareUsers = Z[idx,:]
+
+                d = getUserDistance(currentUser, compareUsers)
+                
+                if (TAKE_MIN_DIST_RATING):
+                    best = np.argmin(d)
+                    final_ratings.append(training_ids[best,0,2])
+                else:    
+                    weights = dnorm(d.tolist(), mu=0, sigma=SIGMA)
+
+                    #normalize weights
+                    weights = weights / np.sum(weights)
+                    #print np.max(weights)
+                    
+                    ratings = training_ids[compare_ids,0,2]
+                    final_ratings.append(np.dot(weights,ratings))
+
+            predictions[movieIdx, userIdx] = alpha*prediction_matrix[movieIdx, userIdx] + (1-alpha)*final_ratings[counter]
+
+            prevMovieIdx = movieIdx
+
+            counter += 1
+            if (firstLoop and np.mod(counter, 10000) == 0):
+                print counter 
+
+        predictions[np.where(predictions < 1)] = 1
+        predictions[np.where(predictions > 5)] = 5
+        mses = irmse(predictions,validation_ids)
+        errors.append(mses)
+        print "The overall RMSE prediction error for alpha " + str(alpha) + " is: " + str(mses)
+        firstLoop = False
+
+    np.save("errors", errors)
+    sys.exit()
 
 #find the indices of the items we have to predict and store them
 item_predict_index = []
@@ -279,14 +338,18 @@ for prediction_index in prediction_indices:
 
     d = getUserDistance(currentUser, compareUsers)
     
-    weights = dnorm(d.tolist(), mu=0, sigma=SIGMA)
+    if (TAKE_MIN_DIST_RATING):
+        best = np.argmin(d)[0]
+        final_rating = training_ids[best,0,2]
+    else:
+        weights = dnorm(d.tolist(), mu=0, sigma=SIGMA)
 
-    #normalize weights
-    weights = weights / np.sum(weights)
-    #print np.max(weights)
+        #normalize weights
+        weights = weights / np.sum(weights)
+        #print np.max(weights)
     
-    ratings = training_ids[compare_ids,0,2]
-    final_rating = np.dot(weights,ratings)
+        ratings = training_ids[compare_ids,0,2]
+        final_rating = np.dot(weights,ratings)
 
     predictions.append(min(5,max(1,final_rating)))
 
