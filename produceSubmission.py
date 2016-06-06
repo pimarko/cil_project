@@ -245,57 +245,61 @@ if (SHOW_RATING_STATS):
 
 if (DO_LINEAR_COMBINATION_TEST):
     #compute linearly combined validation score
-    firstLoop = True
-    final_ratings = []
-    errors = []
+    errors = np.zeros((21,101))
     predictions = np.zeros((1000,10000))
-    for alpha in np.linspace(0, 1, 101):
-        counter = 0
-        prevMovieIdx = -1
-        for prediction_index in validation_ids:
-            movieIdx = prediction_index[0][0]
-            userIdx = prediction_index[0][1]
+    sigmas = np.linspace(0.05, 1, 21)
+    alphas = np.linspace(0, 1, 101)
+    for sigma in sigmas:
+        print "Sigma is", sigma
+        firstLoop = True
+        final_ratings = []
+        for alpha in alphas:
+            counter = 0
+            prevMovieIdx = -1
+            for prediction_index in validation_ids:
+                movieIdx = prediction_index[0][0]
+                userIdx = prediction_index[0][1]
 
-            if (firstLoop):
-                currentUser = Z[userIdx,:]
+                if (firstLoop):
+                    currentUser = Z[userIdx,:]
 
-                if (movieIdx != prevMovieIdx):
-                    compare_ids = np.where(training_ids[:,0,0] == movieIdx)[0]
-                    idx = training_ids[compare_ids,0,1]
-                    compareUsers = Z[idx,:]
+                    if (movieIdx != prevMovieIdx):
+                        compare_ids = np.where(training_ids[:,0,0] == movieIdx)[0]
+                        idx = training_ids[compare_ids,0,1]
+                        compareUsers = Z[idx,:]
 
-                d = getUserDistance(currentUser, compareUsers)
-                
-                if (TAKE_MIN_DIST_RATING):
-                    best = np.argmin(d)
-                    final_ratings.append(training_ids[best,0,2])
-                else:    
-                    weights = dnorm(d.tolist(), mu=0, sigma=SIGMA)
-
-                    #normalize weights
-                    weights = weights / np.sum(weights)
-                    #print np.max(weights)
+                    d = getUserDistance(currentUser, compareUsers)
                     
-                    ratings = training_ids[compare_ids,0,2]
-                    final_ratings.append(np.dot(weights,ratings))
+                    if (TAKE_MIN_DIST_RATING):
+                        best = np.argmin(d)
+                        final_ratings.append(training_ids[best,0,2])
+                    else:    
+                        weights = dnorm(d.tolist(), mu=0, sigma=sigma)
 
-            predictions[movieIdx, userIdx] = alpha*prediction_matrix[movieIdx, userIdx] + (1-alpha)*final_ratings[counter]
+                        #normalize weights
+                        weights = weights / np.sum(weights)
+                        #print np.max(weights)
+                        
+                        ratings = training_ids[compare_ids,0,2]
+                        final_ratings.append(np.dot(weights,ratings))
 
-            prevMovieIdx = movieIdx
+                predictions[movieIdx, userIdx] = alpha*prediction_matrix[movieIdx, userIdx] + (1-alpha)*final_ratings[counter]
 
-            counter += 1
-            if (firstLoop and np.mod(counter, 10000) == 0):
-                print counter 
+                prevMovieIdx = movieIdx
 
-        predictions[np.where(predictions < 1)] = 1
-        predictions[np.where(predictions > 5)] = 5
-        mses = irmse(predictions,validation_ids)
-        errors.append(mses)
-        print "The overall RMSE prediction error for alpha " + str(alpha) + " is: " + str(mses)
-        firstLoop = False
+                counter += 1
+                if (firstLoop and np.mod(counter, 10000) == 0):
+                    print counter 
 
-    np.save("errors", errors)
-    sys.exit()
+            predictions[np.where(predictions < 1)] = 1
+            predictions[np.where(predictions > 5)] = 5
+            mses = irmse(predictions,validation_ids)
+            errors[np.argmin(np.abs(alphas-alpha)), np.argmin(np.abs(sigmas-sigma))] = mses
+            print "The overall RMSE prediction error for alpha " + str(alpha) + " is: " + str(mses)
+            firstLoop = False
+
+        np.save("errors", errors)
+        sys.exit()
 
 #find the indices of the items we have to predict and store them
 item_predict_index = []
