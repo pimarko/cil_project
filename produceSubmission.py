@@ -11,10 +11,12 @@ import os.path
 from math import sqrt,pi,exp
 
 BEST_K = 5
-NMB_OF_TRAINING_ITERATIONS = 10000
+NMB_OF_TRAINING_ITERATIONS = 2000
 LEARNING_RATE = 0.001
-SIGMA = 0.01
+SIGMA = 0.1
 SUBMISSION_FILENAME = "test.csv"
+USE_VALIDATION_SET = False
+SHOW_RATING_STATS = True
 
 np.random.seed(500)
 
@@ -22,12 +24,12 @@ def getKey(item):
     return item[0]
 
 def getUserDistance(userA, usersB):
-    normUserA = np.linalg.norm(userA, ord=2)
-    normsUsersB = np.linalg.norm(usersB, ord=2, axis=1)
-    unnormalized = np.divide(np.dot(usersB, userA), normUserA)
+    #normUserA = np.linalg.norm(userA, ord=2)
+    #normsUsersB = np.linalg.norm(usersB, ord=2, axis=1)
+    #unnormalized = np.divide(np.dot(usersB, userA), normUserA)
 
-    return 1 - np.abs(np.divide(unnormalized, normsUsersB));
-    #return np.linalg.norm(userA-userB, ord=2)
+    #return 1 - np.abs(np.divide(unnormalized, normsUsersB));
+    return np.linalg.norm(usersB.T - userA[:,None], ord=2, axis=0)
 
 def dnorm(X,mu=0,sigma=1.5):
     """
@@ -166,7 +168,7 @@ if (not os.path.isfile("training_ids.npy") or not os.path.isfile("validation_ids
 
 
         rand_num = random.random()
-        if(rand_num < 0.2):
+        if(rand_num < 0.2 and USE_VALIDATION_SET):
             validation_ids.append([(i,j,int(train_predictions[k]))])
         else:
             training_ids.append([(i,j,int(train_predictions[k]))])
@@ -222,9 +224,16 @@ print len(prediction_matrix[np.where(prediction_matrix > 5)])
 
 prediction_matrix[np.where(prediction_matrix < 1)] = 1
 prediction_matrix[np.where(prediction_matrix > 5)] = 5
-mses = irmse(prediction_matrix,validation_ids)
-print "The overall RMSE prediction error for selected " + str(BEST_K) + " optimized singular values and reg_term " + str(0) +" is: " + str(mses)
+if (USE_VALIDATION_SET):
+    mses = irmse(prediction_matrix,validation_ids)
+    print "The overall RMSE prediction error for selected " + str(BEST_K) + " optimized singular values and reg_term " + str(0) +" is: " + str(mses)
 
+if (SHOW_RATING_STATS):
+    ratings = training_ids[:,0,2]
+    print "The mean observed rating is", np.mean(ratings)
+    for i in range(1,6):
+        print "Rating", i, "was observed", len(np.where(ratings == i)[0]), "times"
+    sys.exit()
 
 #compute validation score
 #how?!?
@@ -269,11 +278,12 @@ for prediction_index in prediction_indices:
         compareUsers = Z[idx,:]
 
     d = getUserDistance(currentUser, compareUsers)
+    
     weights = dnorm(d.tolist(), mu=0, sigma=SIGMA)
 
     #normalize weights
     weights = weights / np.sum(weights)
-
+    #print np.max(weights)
     
     ratings = training_ids[compare_ids,0,2]
     final_rating = np.dot(weights,ratings)
