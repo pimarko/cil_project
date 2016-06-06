@@ -11,17 +11,22 @@ import os.path
 from math import sqrt,pi,exp
 
 BEST_K = 5
-NMB_OF_TRAINING_ITERATIONS = 10000000
+NMB_OF_TRAINING_ITERATIONS = 10000
 LEARNING_RATE = 0.001
 SIGMA = 0.01
-SUBMISSION_FILENAME = "mySubmission.csv"
+SUBMISSION_FILENAME = "test.csv"
 
+np.random.seed(500)
 
 def getKey(item):
-    return item[1]
+    return item[0]
 
-def getUserDistance(userA, userB):
-    return 1 - abs(np.dot(userA, userB) / (np.linalg.norm(userA) * np.linalg.norm(userB)));
+def getUserDistance(userA, usersB):
+    normUserA = np.linalg.norm(userA, ord=2)
+    normsUsersB = np.linalg.norm(usersB, ord=2, axis=1)
+    unnormalized = np.divide(np.dot(usersB, userA), normUserA)
+
+    return 1 - np.abs(np.divide(unnormalized, normsUsersB));
     #return np.linalg.norm(userA-userB, ord=2)
 
 def dnorm(X,mu=0,sigma=1.5):
@@ -140,7 +145,6 @@ if (not os.path.isfile("training_ids.npy") or not os.path.isfile("validation_ids
             test_ids.append(row['Id'])
             test_predictions.append(row['Prediction'])
 
-
     print "Data loading done."
 
 
@@ -244,7 +248,7 @@ for k in range(0,len(test_ids)):
     testing_ids.append([(i,j)])
 
 prediction_indices = zip(item_predict_index,user_predict_index)
-sorted_prediction_indices = sorted(prediction_indices, key=getKey)
+
 
 ############################
 #do NN stuff
@@ -253,32 +257,26 @@ sorted_prediction_indices = sorted(prediction_indices, key=getKey)
 counter = 1
 prevMovieIdx = -1
 predictions = []
-for prediction_index in sorted_prediction_indices:
-    userIdx = prediction_index[0]
-    movieIdx = prediction_index[1]
-    
-    currentUser = U[userIdx,:]
-    if (movieIdx != prevMovieIdx):
-        compare_ids = np.where(training_ids[:,0,1] == movieIdx)[0]
-    
-    weights = np.zeros(len(compare_ids))
-    for i in range(0,len(compare_ids)):
-        idx = training_ids[compare_ids[i],0,0]
+for prediction_index in prediction_indices:
+    movieIdx = prediction_index[0]
+    userIdx = prediction_index[1]
 
-        compareUser = U[idx,:]
-        d = getUserDistance(currentUser, compareUser)
-        #print d
-        weights[i] = dnorm(d, mu=0, sigma=SIGMA)
-        
+    currentUser = Z[userIdx,:]
+
+    if (movieIdx != prevMovieIdx):
+        compare_ids = np.where(training_ids[:,0,0] == movieIdx)[0]
+        idx = training_ids[compare_ids,0,1]
+        compareUsers = Z[idx,:]
+
+    d = getUserDistance(currentUser, compareUsers)
+    weights = dnorm(d.tolist(), mu=0, sigma=SIGMA)
 
     #normalize weights
     weights = weights / np.sum(weights)
-    #print weights
 
-    final_rating = 0
-    for i in range(0,len(compare_ids)):
-        rating = training_ids[compare_ids[i],0,2]
-        final_rating += weights[i]*rating
+    
+    ratings = training_ids[compare_ids,0,2]
+    final_rating = np.dot(weights,ratings)
 
     predictions.append(min(5,max(1,final_rating)))
 
