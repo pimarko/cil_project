@@ -11,9 +11,9 @@ import os.path
 from math import sqrt,pi,exp
 
 BEST_K = 5
-NMB_OF_TRAINING_ITERATIONS = 100000
+NMB_OF_TRAINING_ITERATIONS = 10000000
 LEARNING_RATE = 0.001
-SIGMA = 0.2
+SIGMA = 0.01
 SUBMISSION_FILENAME = "mySubmission.csv"
 
 
@@ -21,7 +21,8 @@ def getKey(item):
     return item[1]
 
 def getUserDistance(userA, userB):
-    return np.linalg.norm(userA-userB, ord=2)
+    return 1 - abs(np.dot(userA, userB) / (np.linalg.norm(userA) * np.linalg.norm(userB)));
+    #return np.linalg.norm(userA-userB, ord=2)
 
 def dnorm(X,mu=0,sigma=1.5):
     """
@@ -221,6 +222,8 @@ mses = irmse(prediction_matrix,validation_ids)
 print "The overall RMSE prediction error for selected " + str(BEST_K) + " optimized singular values and reg_term " + str(0) +" is: " + str(mses)
 
 
+#compute validation score
+#how?!?
 
 #find the indices of the items we have to predict and store them
 item_predict_index = []
@@ -284,6 +287,7 @@ for prediction_index in sorted_prediction_indices:
     counter += 1
     if (np.mod(counter, 1000) == 0):
         print counter
+        print final_rating        
 
 
 
