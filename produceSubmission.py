@@ -294,12 +294,12 @@ if (DO_LINEAR_COMBINATION_TEST):
             predictions[np.where(predictions < 1)] = 1
             predictions[np.where(predictions > 5)] = 5
             mses = irmse(predictions,validation_ids)
-            errors[np.argmin(np.abs(sigmas-sigmaalphas-alpha)), np.argmin(np.abs(alphas-alpha))] = mses
+            errors[np.argmin(np.abs(sigmas-sigma)), np.argmin(np.abs(alphas-alpha))] = mses
             print "The overall RMSE prediction error for alpha " + str(alpha) + " is: " + str(mses)
             firstLoop = False
 
         np.save("errors", errors)
-        sys.exit()
+    sys.exit()
 
 #find the indices of the items we have to predict and store them
 item_predict_index = []
