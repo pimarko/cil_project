@@ -13,12 +13,14 @@ from math import sqrt,pi,exp
 BEST_K = 5
 NMB_OF_TRAINING_ITERATIONS = 20000000
 LEARNING_RATE = 0.001
-SIGMA = 0.1
-SUBMISSION_FILENAME = "K1_submission.csv"
+SIGMA = 10
+ALPHA = 0.8
+SUBMISSION_FILENAME = "addBias_submission.csv"
 USE_VALIDATION_SET = False
 SHOW_RATING_STATS = True
-DO_LINEAR_COMBINATION_TEST = True
+DO_LINEAR_COMBINATION_TEST = False
 TAKE_MIN_DIST_RATING = False
+DO_NN = False
 
 np.random.seed(500)
 
@@ -184,11 +186,13 @@ if (not os.path.isfile("training_ids.npy") or not os.path.isfile("validation_ids
     np.save("training_ids", training_ids)
     np.save("validation_ids", validation_ids)
     np.save("test_ids", test_ids)
+    np.save("train_matrix", train_matrix)
 
 else:
     training_ids = np.load("training_ids.npy")
     validation_ids = np.load("validation_ids.npy")
     test_ids = np.load("test_ids.npy")
+    train_matrix = np.load("train_matrix.npy")
     print "Data loaded from files"
     #plt.hist(training_ids[:,0,1], 10000)
     #plt.show()
@@ -245,9 +249,9 @@ if (SHOW_RATING_STATS):
 
 if (DO_LINEAR_COMBINATION_TEST):
     #compute linearly combined validation score
-    errors = np.zeros((21,101))
+    errors = np.zeros((101,101))
     predictions = np.zeros((1000,10000))
-    sigmas = np.linspace(0.05, 1, 21)
+    sigmas = np.linspace(1, 10, 101)
     alphas = np.linspace(0, 1, 101)
     for sigma in sigmas:
         print "Sigma is", sigma
@@ -322,48 +326,67 @@ for k in range(0,len(test_ids)):
 prediction_indices = zip(item_predict_index,user_predict_index)
 
 
-############################
-#do NN stuff
-############################
-#find the predictions
-counter = 1
-prevMovieIdx = -1
-predictions = []
-for prediction_index in prediction_indices:
-    movieIdx = prediction_index[0]
-    userIdx = prediction_index[1]
+if (DO_NN):
+    ############################
+    #do NN stuff
+    ############################
+    #find the predictions
+    counter = 1
+    prevMovieIdx = -1
+    predictions = []
+    for prediction_index in prediction_indices:
+        movieIdx = prediction_index[0]
+        userIdx = prediction_index[1]
 
-    currentUser = Z[userIdx,:]
+        currentUser = Z[userIdx,:]
 
-    if (movieIdx != prevMovieIdx):
-        compare_ids = np.where(training_ids[:,0,0] == movieIdx)[0]
-        idx = training_ids[compare_ids,0,1]
-        compareUsers = Z[idx,:]
+        if (movieIdx != prevMovieIdx):
+            compare_ids = np.where(training_ids[:,0,0] == movieIdx)[0]
+            idx = training_ids[compare_ids,0,1]
+            compareUsers = Z[idx,:]
 
-    d = getUserDistance(currentUser, compareUsers)
-    
-    if (TAKE_MIN_DIST_RATING):
-        best = np.argmin(d)[0]
-        final_rating = training_ids[best,0,2]
-    else:
-        weights = dnorm(d.tolist(), mu=0, sigma=SIGMA)
+        d = getUserDistance(currentUser, compareUsers)
+        
+        if (TAKE_MIN_DIST_RATING):
+            best = np.argmin(d)[0]
+            final_rating = training_ids[best,0,2]
+        else:
+            weights = dnorm(d.tolist(), mu=0, sigma=SIGMA)
 
-        #normalize weights
-        weights = weights / np.sum(weights)
-        #print np.max(weights)
-    
-        ratings = training_ids[compare_ids,0,2]
-        final_rating = np.dot(weights,ratings)
+            #normalize weights
+            weights = weights / np.sum(weights)
+        
+            ratings = training_ids[compare_ids,0,2]
+            final_rating = np.dot(weights,ratings)
 
-    predictions.append(min(5,max(1,final_rating)))
+        predictions.append(min(5,max(1,final_rating)))
 
-    prevMovieIdx = movieIdx
+        prevMovieIdx = movieIdx
 
-    counter += 1
-    if (np.mod(counter, 1000) == 0):
-        print counter
-        print final_rating        
+        counter += 1
+        if (np.mod(counter, 1000) == 0):
+            print counter
+            print final_rating
 
+else: 
+    predictions = []
+    prevMovieIdx = -1
+    counter = 0
+    for prediction_index in prediction_indices:
+        movieIdx = prediction_index[0]
+        userIdx = prediction_index[1]
+
+        if (prevMovieIdx != movieIdx):
+            meanMovieRating = np.sum(train_matrix[movieIdx,:])/np.count_nonzero(train_matrix[movieIdx,:])
+
+        predictions.append(ALPHA*prediction_matrix[movieIdx, userIdx] + (1-ALPHA)*meanMovieRating)
+
+        prevMovieIdx = movieIdx
+
+        counter += 1
+        if (np.mod(counter, 100000) == 0):
+            print counter
+    print "The mean prediction is", np.mean(predictions)
 
 
 #generate prediction file
