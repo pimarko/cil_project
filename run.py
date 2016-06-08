@@ -68,12 +68,12 @@ SUBMISSION_FILENAME = "my_submission_final_inc_svd_knn_user_item.csv"
 GENERATE_SUBMISSION = True
 
 #optimal parameters
-BEST_K = 10
-KNN = 2
+BEST_K = 5
+KNN = 10
 LEARNING_RATE = 0.001
-NMB_OF_TRAINING_ITERATIONS = 1000000
+NMB_OF_TRAINING_ITERATIONS = 500000
 SEED_NUM = 500
-REGULARIZATION_TERM = 0.000001
+REGULARIZATION_TERM = 0
 EPS = 0.1
 OPTIMAL_ALPHA = 0
 NUM_ALPHAS = 5
@@ -84,7 +84,7 @@ K = 120
 REG_TERMS = 5
 VALIDATION = True
 USE_KNN_ITEM_USER = True
-VALIDATION_SET_SIZE = 0.2
+VALIDATION_SET_SIZE = 0.1
 
 #do not modify parameters
 alphas = np.linspace(0,1,NUM_ALPHAS) 
@@ -326,6 +326,15 @@ if(GENERATE_SUBMISSION and VALIDATION):
     #with added bias accordingly(multiplication of U and Z with an additive correction term)
     
     predictions = []
+    
+    weights_user = [[None for x in range(KNN)] for y in range(10000)]
+    points_index_user = [[None for x in range(KNN)] for y in range(10000)]
+    knn_possible_user = [None for x in range(10000)]
+
+    weights_item = [[None for x in range(KNN)] for y in range(1000)]
+    points_index_item = [[None for x in range(KNN)] for y in range(1000)]
+    knn_possible_item = [None for x in range(1000)]
+
     if(USE_KNN_ITEM_USER):
         validation_error = []
         for alpha in alphas:
@@ -340,57 +349,61 @@ if(GENERATE_SUBMISSION and VALIDATION):
                 user = item_data[1]
                 item_rating = item_data[2]
 
-                dist_user,points_index_user = tree_user.query(Z[user,:],k=KNN,p=2)
-                dist_item,points_index_item = tree_item.query(U[item,:],k=KNN,p=2)
-                norm_factor_user = 0
-                norm_factor_item = 0
-                knn_possible_user = False
-                knn_possible_item = False
-                for i in range(KNN):
-                    nn_user = points_index_user[i]
-                    nn_item = points_index_item[i]
-                    if(train_matrix[item,nn_user] != 0):
-                        norm_factor_user = norm_factor_user + 1./dist_user[i]
-                        knn_possible_user = True
-                    
-                    if(train_matrix[nn_item,user] != 0):
-                        norm_factor_item = norm_factor_item + 1./dist_item[i]
-                        knn_possible_item = True
-                    
-                if(knn_possible_user and knn_possible_item):
+                if (knn_possible_user[user] == None):
+                    dist_user,points_index_user[user] = tree_user.query(Z[user,:],k=KNN,p=2)
+                    knn_possible_user[user] = False
+                    for i in range(KNN):
+                        nn_user = points_index_user[user][i]
+                        if(train_matrix[item,nn_user] != 0):
+                            weights_user[user][i] = 1./dist_user[i]
+                            knn_possible_user[user] = True
+                        else:
+                            weights_user[user][i] = 0
+                    if (knn_possible_user[user]):
+                        norm_factor_user = sum(weights_user[user])
+                        weights_user[user] = [float(x)/float(norm_factor_user) for x in weights_user[user]]
+
+                if (knn_possible_item[item] == None):
+                    dist_item,points_index_item[item] = tree_item.query(U[item,:],k=KNN,p=2)
+                    knn_possible_item[item] = False
+                    for i in range(KNN):
+                        nn_item = points_index_item[item][i]
+                        if(train_matrix[nn_item,user] != 0):
+                            weights_item[item][i] = 1./dist_item[i]
+                            knn_possible_item[item] = True
+                        else:
+                            weights_item[item][i] = 0
+                    if (knn_possible_item[item]):
+                        norm_factor_item = sum(weights_item[item])
+                        weights_item[item] = [float(x)/float(norm_factor_item) for x in weights_item[item]]
+                
+
+                if(knn_possible_user[user] and knn_possible_item[item]):
                     rating_user = 0
                     rating_item = 0
                     for i in range(KNN):
-                        nn_user = points_index_user[i]
-                        nn_item = points_index_item[i]
+                        nn_user = points_index_user[user][i]
+                        nn_item = points_index_item[item][i]
                         if(train_matrix[item,nn_user] != 0):
-                            dist_norm = 1./dist_user[i]
-                            weight = float(dist_norm)/float(norm_factor_user)
-                            rating_user = rating_user + weight*train_matrix[item,nn_user]
+                            rating_user = rating_user + weights_user[user][i]*train_matrix[item,nn_user]
                         if(train_matrix[nn_item,user] != 0):
-                            dist_norm = 1./dist_item[i]
-                            weight = float(dist_norm)/float(norm_factor_item)
-                            rating_item = rating_item + weight*train_matrix[nn_item,user]
+                            rating_item = rating_item + weights_item[item][i]*train_matrix[nn_item,user]
                     #linear combination of both ratings of items and users
                     rating = rating_item*alpha + rating_user*(1-alpha)
 
-                elif(knn_possible_user):
+                elif(knn_possible_user[user]):
                     rating = 0
                     for i in range(KNN):
-                        nn_user = points_index_user[i]
+                        nn_user = points_index_user[user][i]
                         if(train_matrix[item,nn_user] != 0):
-                            dist_norm = 1./dist_user[i]
-                            weight = float(dist_norm)/float(norm_factor_user)
-                            rating = rating + weight*train_matrix[item,nn_user]
+                            rating = rating + weights_user[user][i]*train_matrix[item,nn_user]
                 
-                elif(knn_possible_item):
+                elif(knn_possible_item[item]):
                     rating = 0
                     for i in range(KNN):
-                        nn_item = points_index_item[i]
+                        nn_item = points_index_item[item][i]
                         if(train_matrix[nn_item,user] != 0):
-                            dist_norm = 1./dist_item[i]
-                            weight = float(dist_norm)/float(norm_factor_item)
-                            rating = rating + weight*train_matrix[nn_item,user]
+                            rating = rating + weights_item[item][i]*train_matrix[nn_item,user]
                 
                 else:
                     rating = prediction_matrix[item,user]
@@ -399,8 +412,9 @@ if(GENERATE_SUBMISSION and VALIDATION):
                     elif(rating < 1):
                         rating = 1
             
-                if(j % 100000 == 0):
+                if(j % 10000 == 0):
                     print "Predictions computing..." + str(float(j)/float(len(validation_ids)))
+                    print rating
             
                 error = error + (np.square(rating-item_rating))
                 j = j + 1
