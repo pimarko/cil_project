@@ -71,7 +71,7 @@ GENERATE_SUBMISSION = True
 BEST_K = 10
 KNN = 2
 LEARNING_RATE = 0.001
-NMB_OF_TRAINING_ITERATIONS = 10000000
+NMB_OF_TRAINING_ITERATIONS = 1000000
 SEED_NUM = 500
 REGULARIZATION_TERM = 0.000001
 EPS = 0.1
@@ -91,8 +91,8 @@ alphas = np.linspace(0,1,NUM_ALPHAS)
 
 #used for sorting
 def get_key(item):
-	return item[1]
-	
+    return item[1]
+    
 #calculate the loss function
 def irmse(predicted_matrix,validation_ids):
     num_of_items = len(validation_ids)
@@ -174,7 +174,7 @@ for k in range(0,len(train_ids)):
        
 print "Data matrix built."
 if(VALIDATION):
-	print "Number of items in the validation set: " + str(len(validation_ids)) + "."
+    print "Number of items in the validation set: " + str(len(validation_ids)) + "."
 print "Number of items in the training set: " + str(len(training_ids)) + "."
 
 #prepare random draws from data set
@@ -184,7 +184,7 @@ print "Random ids collected"
 
 #grid search for optimal hyperparameteres k and reg. term using sgd algorithm. Uses validation set.
 if(GRID_SEARCH):
-	VALIDATION = True
+    VALIDATION = True
 
 if(GRID_SEARCH and VALIDATION):
     k_search = np.linspace(1,K,K).astype(int)
@@ -256,22 +256,23 @@ item_predict_index = []
 user_predict_index = []
 testing_ids = []
 for k in range(0,len(test_ids)):
-	test_id = test_ids[k]
+    test_id = test_ids[k]
 
-	index_r = test_id.index('r')
-	index_c = test_id.index('c')
-	length = len(test_id)
+    index_r = test_id.index('r')
+    index_c = test_id.index('c')
+    length = len(test_id)
 
-	i = int(test_id[index_c+1:length])-1
-	j = int(test_id[index_r+1:index_c-1])-1
+    i = int(test_id[index_c+1:length])-1
+    j = int(test_id[index_r+1:index_c-1])-1
 
-	item_predict_index.append(i)
-	user_predict_index.append(j)
-	testing_ids.append([(i,j)])
+    item_predict_index.append(i)
+    user_predict_index.append(j)
+    testing_ids.append([(i,j)])
 
 prediction_indices = zip(item_predict_index,user_predict_index)
 sorted_prediction_indices = sorted(prediction_indices, key=get_key)
-	
+
+predictions = []
 #generate submission with optimal configuration and using tonly the training set for training (80% of the given dataset)
 if(GENERATE_SUBMISSION and VALIDATION):
     #run the optimization
@@ -316,316 +317,316 @@ if(GENERATE_SUBMISSION and VALIDATION):
 
         j = j + 1
 
-	prediction_matrix = np.dot(U,Z.T)
-	print "Optimization done."
+    prediction_matrix = np.dot(U,Z.T)
+    print "Optimization done."
     
-	#NN(#data x #dim) algorithm on the user matrix Z. For a given user, find optimal n NN users and use weighted (normalized distances) 
-	#average of their existing ratings to obtain the rating for the observed user; perform the same for the items. Try to find
-	# a linear combination between those two obtained ratings.if both nn are not found then use the rating from the prediction matrix 
-	#with added bias accordingly(multiplication of U and Z with an additive correction term)
-	
-	predictions = []
-	if(USE_KNN_ITEM_USER):
-		validation_error = []
-		for alpha in alphas:
-			j = 1
-			tree_user = KDTree(Z)
-			tree_item = KDTree(U)
-			num_of_items = len(validation_ids)
-			error = 0
-			for validation_id in validation_ids:
-				item_data = validation_id[0]
-				item = item_data[0]
-				user = item_data[1]
-				item_rating = item_data[2]
+    #NN(#data x #dim) algorithm on the user matrix Z. For a given user, find optimal n NN users and use weighted (normalized distances) 
+    #average of their existing ratings to obtain the rating for the observed user; perform the same for the items. Try to find
+    # a linear combination between those two obtained ratings.if both nn are not found then use the rating from the prediction matrix 
+    #with added bias accordingly(multiplication of U and Z with an additive correction term)
+    
+    predictions = []
+    if(USE_KNN_ITEM_USER):
+        validation_error = []
+        for alpha in alphas:
+            j = 1
+            tree_user = KDTree(Z)
+            tree_item = KDTree(U)
+            num_of_items = len(validation_ids)
+            error = 0
+            for validation_id in validation_ids:
+                item_data = validation_id[0]
+                item = item_data[0]
+                user = item_data[1]
+                item_rating = item_data[2]
 
-				dist_user,points_index_user = tree_user.query(Z[user,:],k=KNN,p=2)
-				dist_item,points_index_item = tree_item.query(U[item,:],k=KNN,p=2)
-				norm_factor_user = 0
-				norm_factor_item = 0
-				knn_possible_user = False
-				knn_possible_item = False
-				for i in range(KNN):
-					nn_user = points_index_user[i]
-					nn_item = points_index_item[i]
-					if(train_matrix[item,nn_user] != 0):
-						norm_factor_user = norm_factor_user + 1./dist_user[i]
-						knn_possible_user = True
-					
-					if(train_matrix[nn_item,user] != 0):
-						norm_factor_item = norm_factor_item + 1./dist_item[i]
-						knn_possible_item = True
-					
-				if(knn_possible_user and knn_possible_item):
-					rating_user = 0
-					rating_item = 0
-					for i in range(KNN):
-						nn_user = points_index_user[i]
-						nn_item = points_index_item[i]
-						if(train_matrix[item,nn_user] != 0):
-							dist_norm = 1./dist_user[i]
-							weight = float(dist_norm)/float(norm_factor_user)
-							rating_user = rating_user + weight*train_matrix[item,nn_user]
-						if(train_matrix[nn_item,user] != 0):
-							dist_norm = 1./dist_item[i]
-							weight = float(dist_norm)/float(norm_factor_item)
-							rating_item = rating_item + weight*train_matrix[nn_item,user]
-					#linear combination of both ratings of items and users
-					rating = rating_item*alpha + rating_user*(1-alpha)
+                dist_user,points_index_user = tree_user.query(Z[user,:],k=KNN,p=2)
+                dist_item,points_index_item = tree_item.query(U[item,:],k=KNN,p=2)
+                norm_factor_user = 0
+                norm_factor_item = 0
+                knn_possible_user = False
+                knn_possible_item = False
+                for i in range(KNN):
+                    nn_user = points_index_user[i]
+                    nn_item = points_index_item[i]
+                    if(train_matrix[item,nn_user] != 0):
+                        norm_factor_user = norm_factor_user + 1./dist_user[i]
+                        knn_possible_user = True
+                    
+                    if(train_matrix[nn_item,user] != 0):
+                        norm_factor_item = norm_factor_item + 1./dist_item[i]
+                        knn_possible_item = True
+                    
+                if(knn_possible_user and knn_possible_item):
+                    rating_user = 0
+                    rating_item = 0
+                    for i in range(KNN):
+                        nn_user = points_index_user[i]
+                        nn_item = points_index_item[i]
+                        if(train_matrix[item,nn_user] != 0):
+                            dist_norm = 1./dist_user[i]
+                            weight = float(dist_norm)/float(norm_factor_user)
+                            rating_user = rating_user + weight*train_matrix[item,nn_user]
+                        if(train_matrix[nn_item,user] != 0):
+                            dist_norm = 1./dist_item[i]
+                            weight = float(dist_norm)/float(norm_factor_item)
+                            rating_item = rating_item + weight*train_matrix[nn_item,user]
+                    #linear combination of both ratings of items and users
+                    rating = rating_item*alpha + rating_user*(1-alpha)
 
-				elif(knn_possible_user):
-					rating = 0
-					for i in range(KNN):
-						nn_user = points_index_user[i]
-						if(train_matrix[item,nn_user] != 0):
-							dist_norm = 1./dist_user[i]
-							weight = float(dist_norm)/float(norm_factor_user)
-							rating = rating + weight*train_matrix[item,nn_user]
-				
-				elif(knn_possible_item):
-					rating = 0
-					for i in range(KNN):
-						nn_item = points_index_item[i]
-						if(train_matrix[nn_item,user] != 0):
-							dist_norm = 1./dist_item[i]
-							weight = float(dist_norm)/float(norm_factor_item)
-							rating = rating + weight*train_matrix[nn_item,user]
-				
-				else:
-					rating = prediction_matrix[item,user]
-					if(rating > 5):
-						rating = 5
-					elif(rating < 1):
-						rating = 1
-			
-				if(j % 100000 == 0):
-					print "Predictions computing..." + str(float(j)/float(len(validation_ids)))
-			
-				error = error + (np.square(rating-item_rating))
-				j = j + 1
-			
-			validation_error.append(np.sqrt(float(error)/float(num_of_items)))
-			print "Validation error for alpha " + str(alpha) + " is: " + str(np.sqrt(float(error)/float(num_of_items)))
-		
-		best_alpha = alphas[validation_error.index(min(validation_error))]
-		#prediction
-		#user KNN
-		#only consider user once (users sorted), and store his neighbours to save computation time
-		j = 1
-		tree = KDTree(Z)		
-		previous_user = np.inf
-		current_user = np.inf
-		for prediction_index in sorted_prediction_indices:
-			previous_user = current_user
-			item = prediction_index[0]
-			current_user = prediction_index[1]
-			if(not (current_user == previous_user)):
-				dist_user,points_index_user = tree.query(Z[user,:],k=KNN,p=2)
-				
-			dist_item,points_index_item = tree.query(U[item,:],k=KNN,p=2)
-			norm_factor_user = 0
-			norm_factor_item = 0
-			knn_possible_user = False
-			knn_possible_item = False
-			for i in range(KNN):
-				nn_user = points_index_user[i]
-				nn_item = points_index_item[i]
-				if(train_matrix[item,nn_user] != 0):
-					norm_factor_user = norm_factor_user + 1./dist_user[i]
-					knn_possible_user = True
-				
-				if(train_matrix[nn_item,user] != 0):
-					norm_factor_item = norm_factor_item + 1./dist_item[i]
-					knn_possible_item = True
-			
-			if(knn_possible_user and knn_possible_item):
-				rating_user = 0
-				rating_item = 0
-				for i in range(KNN):
-					nn_user = points_index_user[i]
-					nn_item = points_index_item[i]
-					if(train_matrix[item,nn_user] != 0):
-						dist_norm = 1./dist_user[i]
-						weight = float(dist_norm)/float(norm_factor_user)
-						rating_user = rating_user + weight*train_matrix[item,nn_user]
-					if(train_matrix[nn_item,user] != 0):
-						dist_norm = 1./dist_item[i]
-						weight = float(dist_norm)/float(norm_factor_item)
-						rating_item = rating_item + weight*train_matrix[nn_item,user]
-				#linear combination of both ratings of items and users
-				rating = rating_item*best_alpha + rating_user*(1-best_alpha)
-				predictions.append(rating)
-			
-			elif(knn_possible_user):
-				rating = 0
-				for i in range(KNN):
-					nn_user = points_index_user[i]
-					if(train_matrix[item,nn_user] != 0):
-						dist_norm = 1./dist_user[i]
-						weight = float(dist_norm)/float(norm_factor_user)
-						rating = rating + weight*train_matrix[item,nn_user]
-				predictions.append(rating)
-			
-			elif(knn_possible_item):
-				rating = 0
-				for i in range(KNN):
-					nn_item = points_index_item[i]
-					if(train_matrix[nn_item,user] != 0):
-						dist_norm = 1./dist_item[i]
-						weight = float(dist_norm)/float(norm_factor_item)
-						rating = rating + weight*train_matrix[nn_item,user]
-				predictions.append(rating)
-				
-			else:
-				rating = prediction_matrix[item,user]
-				if(rating > 5):
-					rating = 5
-				elif(rating < 1):
-					rating = 1
-				predictions.append(rating)
-			
-			if(j % 100000 == 0):
-				print "Predictions computing..." + str(float(j)/float(len(sorted_prediction_indices)))
-		
-			j = j + 1
-	else:
-		for prediction_index in sorted_prediction_indices:
-			rating = prediction_matrix[prediction_index[0],prediction_index[1]]
-			if(rating > 5):
-				rating = 5
-			elif(rating < 1):
-				rating = 1
-			
-			predictions.append(rating)
+                elif(knn_possible_user):
+                    rating = 0
+                    for i in range(KNN):
+                        nn_user = points_index_user[i]
+                        if(train_matrix[item,nn_user] != 0):
+                            dist_norm = 1./dist_user[i]
+                            weight = float(dist_norm)/float(norm_factor_user)
+                            rating = rating + weight*train_matrix[item,nn_user]
+                
+                elif(knn_possible_item):
+                    rating = 0
+                    for i in range(KNN):
+                        nn_item = points_index_item[i]
+                        if(train_matrix[nn_item,user] != 0):
+                            dist_norm = 1./dist_item[i]
+                            weight = float(dist_norm)/float(norm_factor_item)
+                            rating = rating + weight*train_matrix[nn_item,user]
+                
+                else:
+                    rating = prediction_matrix[item,user]
+                    if(rating > 5):
+                        rating = 5
+                    elif(rating < 1):
+                        rating = 1
+            
+                if(j % 100000 == 0):
+                    print "Predictions computing..." + str(float(j)/float(len(validation_ids)))
+            
+                error = error + (np.square(rating-item_rating))
+                j = j + 1
+            
+            validation_error.append(np.sqrt(float(error)/float(num_of_items)))
+            print "Validation error for alpha " + str(alpha) + " is: " + str(np.sqrt(float(error)/float(num_of_items)))
+        
+        best_alpha = alphas[validation_error.index(min(validation_error))]
+        #prediction
+        #user KNN
+        #only consider user once (users sorted), and store his neighbours to save computation time
+        j = 1
+        tree = KDTree(Z)        
+        previous_user = np.inf
+        current_user = np.inf
+        for prediction_index in sorted_prediction_indices:
+            previous_user = current_user
+            item = prediction_index[0]
+            current_user = prediction_index[1]
+            if(not (current_user == previous_user)):
+                dist_user,points_index_user = tree.query(Z[user,:],k=KNN,p=2)
+                
+            dist_item,points_index_item = tree.query(U[item,:],k=KNN,p=2)
+            norm_factor_user = 0
+            norm_factor_item = 0
+            knn_possible_user = False
+            knn_possible_item = False
+            for i in range(KNN):
+                nn_user = points_index_user[i]
+                nn_item = points_index_item[i]
+                if(train_matrix[item,nn_user] != 0):
+                    norm_factor_user = norm_factor_user + 1./dist_user[i]
+                    knn_possible_user = True
+                
+                if(train_matrix[nn_item,user] != 0):
+                    norm_factor_item = norm_factor_item + 1./dist_item[i]
+                    knn_possible_item = True
+            
+            if(knn_possible_user and knn_possible_item):
+                rating_user = 0
+                rating_item = 0
+                for i in range(KNN):
+                    nn_user = points_index_user[i]
+                    nn_item = points_index_item[i]
+                    if(train_matrix[item,nn_user] != 0):
+                        dist_norm = 1./dist_user[i]
+                        weight = float(dist_norm)/float(norm_factor_user)
+                        rating_user = rating_user + weight*train_matrix[item,nn_user]
+                    if(train_matrix[nn_item,user] != 0):
+                        dist_norm = 1./dist_item[i]
+                        weight = float(dist_norm)/float(norm_factor_item)
+                        rating_item = rating_item + weight*train_matrix[nn_item,user]
+                #linear combination of both ratings of items and users
+                rating = rating_item*best_alpha + rating_user*(1-best_alpha)
+                predictions.append(rating)
+            
+            elif(knn_possible_user):
+                rating = 0
+                for i in range(KNN):
+                    nn_user = points_index_user[i]
+                    if(train_matrix[item,nn_user] != 0):
+                        dist_norm = 1./dist_user[i]
+                        weight = float(dist_norm)/float(norm_factor_user)
+                        rating = rating + weight*train_matrix[item,nn_user]
+                predictions.append(rating)
+            
+            elif(knn_possible_item):
+                rating = 0
+                for i in range(KNN):
+                    nn_item = points_index_item[i]
+                    if(train_matrix[nn_item,user] != 0):
+                        dist_norm = 1./dist_item[i]
+                        weight = float(dist_norm)/float(norm_factor_item)
+                        rating = rating + weight*train_matrix[nn_item,user]
+                predictions.append(rating)
+                
+            else:
+                rating = prediction_matrix[item,user]
+                if(rating > 5):
+                    rating = 5
+                elif(rating < 1):
+                    rating = 1
+                predictions.append(rating)
+            
+            if(j % 100000 == 0):
+                print "Predictions computing..." + str(float(j)/float(len(sorted_prediction_indices)))
+        
+            j = j + 1
+    else:
+        for prediction_index in sorted_prediction_indices:
+            rating = prediction_matrix[prediction_index[0],prediction_index[1]]
+            if(rating > 5):
+                rating = 5
+            elif(rating < 1):
+                rating = 1
+            
+            predictions.append(rating)
     
 #generate submission with optimal configuration and using the whole dataset provided
 if(GENERATE_SUBMISSION and (not VALIDATION)):
-	#run the optimization
-	U = np.random.rand(1000,BEST_K)
-	Z = np.random.rand(10000,BEST_K)
-	j = 1
-	training_err_curr = np.inf
-	training_err_prev = np.inf
-	for rand_idx in xrange(len(rand_ids)):
-		training_id = training_ids[rand_ids[rand_idx]]
-		nz_item = training_id[0]
-		d = nz_item[0]
-		n = nz_item[1]
-		rating = nz_item[2]
-		
-		U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],LEARNING_RATE, REGULARIZATION_TERM)
+    #run the optimization
+    U = np.random.rand(1000,BEST_K)
+    Z = np.random.rand(10000,BEST_K)
+    j = 1
+    training_err_curr = np.inf
+    training_err_prev = np.inf
+    for rand_idx in xrange(len(rand_ids)):
+        training_id = training_ids[rand_ids[rand_idx]]
+        nz_item = training_id[0]
+        d = nz_item[0]
+        n = nz_item[1]
+        rating = nz_item[2]
+        
+        U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],LEARNING_RATE, REGULARIZATION_TERM)
 
 
-		if (np.mod(j,500000) == 0 or j == 1):
-		    prediction_matrix = np.dot(U,Z.T)
-		    training_err_prev = training_err_curr
-		    training_err_curr = irmse(prediction_matrix,training_ids)
-		    if(training_err_prev < training_err_curr or training_err_curr < EPS):
-		        print "Early abort."
-		       
-		        print "Current training error: " + str(training_err_curr) + "."
-		        print "Previous training error: " + str(training_err_prev) + "."
-		        break
-		    else:
-		        print "At iteration: " + str(j) + "."
+        if (np.mod(j,500000) == 0 or j == 1):
+            prediction_matrix = np.dot(U,Z.T)
+            training_err_prev = training_err_curr
+            training_err_curr = irmse(prediction_matrix,training_ids)
+            if(training_err_prev < training_err_curr or training_err_curr < EPS):
+                print "Early abort."
+               
+                print "Current training error: " + str(training_err_curr) + "."
+                print "Previous training error: " + str(training_err_prev) + "."
+                break
+            else:
+                print "At iteration: " + str(j) + "."
 
-		j = j + 1
+        j = j + 1
 
-	prediction_matrix = np.dot(U,Z.T)
-	print "Optimization done."
+    prediction_matrix = np.dot(U,Z.T)
+    print "Optimization done."
 
-	predictions = []
-	if(USE_KNN_ITEM_USER):
-		#prediction
-		#only consider user once (users sorted), and store his neighbours to save computation time
-		j = 1
-		tree = KDTree(Z)
-		previous_user = np.inf
-		current_user = np.inf
-		for prediction_index in sorted_prediction_indices:
-			previous_user = current_user
-			item = prediction_index[0]
-			current_user = prediction_index[1]
-			if(not (current_user == previous_user)):
-				dist_user,points_index_user = tree.query(Z[user,:],k=KNN,p=2)
-				
-			dist_item,points_index_item = tree.query(U[item,:],k=KNN,p=2)
-			norm_factor_user = 0
-			norm_factor_item = 0
-			knn_possible_user = False
-			knn_possible_item = False
-			for i in range(KNN):
-				nn_user = points_index_user[i]
-				nn_item = points_index_item[i]
-				if(train_matrix[item,nn_user] != 0):
-					norm_factor_user = norm_factor_user + 1./dist_user[i]
-					knn_possible_user = True
-				
-				if(train_matrix[nn_item,user] != 0):
-					norm_factor_item = norm_factor_item + 1./dist_item[i]
-					knn_possible_item = True
-			
-			if(knn_possible_user and knn_possible_item):
-				rating_user = 0
-				rating_item = 0
-				for i in range(KNN):
-					nn_user = points_index_user[i]
-					nn_item = points_index_item[i]
-					if(train_matrix[item,nn_user] != 0):
-						dist_norm = 1./dist_user[i]
-						weight = float(dist_norm)/float(norm_factor_user)
-						rating_user = rating_user + weight*train_matrix[item,nn_user]
-					if(train_matrix[nn_item,user] != 0):
-						dist_norm = 1./dist_item[i]
-						weight = float(dist_norm)/float(norm_factor_item)
-						rating_item = rating_item + weight*train_matrix[nn_item,user]
-				#linear combination of both ratings of items and users
-				rating = rating_item*OPTIMAL_ALPHA + rating_user*(1-OPTIMAL_ALPHA)
-				predictions.append(rating)
-			
-			elif(knn_possible_user):
-				rating = 0
-				for i in range(KNN):
-					nn_user = points_index_user[i]
-					if(train_matrix[item,nn_user] != 0):
-						dist_norm = 1./dist_user[i]
-						weight = float(dist_norm)/float(norm_factor_user)
-						rating = rating + weight*train_matrix[item,nn_user]
-				predictions.append(rating)
-			
-			elif(knn_possible_item):
-				rating = 0
-				for i in range(KNN):
-					nn_item = points_index_item[i]
-					if(train_matrix[nn_item,user] != 0):
-						dist_norm = 1./dist_item[i]
-						weight = float(dist_norm)/float(norm_factor_item)
-						rating = rating + weight*train_matrix[nn_item,user]
-				predictions.append(rating)
-				
-			else:
-				rating = prediction_matrix[item,user]
-				if(rating > 5):
-					rating = 5
-				elif(rating < 1):
-					rating = 1
-				predictions.append(rating)
-			
-			if(j % 100000 == 0):
-				print "Predictions computing..." + str(float(j)/float(len(sorted_prediction_indices)))
-		
-			j = j + 1
-	else:
-		for prediction_index in sorted_prediction_indices:
-			rating = prediction_matrix[prediction_index[0],prediction_index[1]]
-			if(rating > 5):
-				rating = 5
-			elif(rating < 1):
-				rating = 1
-			
-			predictions.append(rating)
-	
-	
+    predictions = []
+    if(USE_KNN_ITEM_USER):
+        #prediction
+        #only consider user once (users sorted), and store his neighbours to save computation time
+        j = 1
+        tree = KDTree(Z)
+        previous_user = np.inf
+        current_user = np.inf
+        for prediction_index in sorted_prediction_indices:
+            previous_user = current_user
+            item = prediction_index[0]
+            current_user = prediction_index[1]
+            if(not (current_user == previous_user)):
+                dist_user,points_index_user = tree.query(Z[user,:],k=KNN,p=2)
+                
+            dist_item,points_index_item = tree.query(U[item,:],k=KNN,p=2)
+            norm_factor_user = 0
+            norm_factor_item = 0
+            knn_possible_user = False
+            knn_possible_item = False
+            for i in range(KNN):
+                nn_user = points_index_user[i]
+                nn_item = points_index_item[i]
+                if(train_matrix[item,nn_user] != 0):
+                    norm_factor_user = norm_factor_user + 1./dist_user[i]
+                    knn_possible_user = True
+                
+                if(train_matrix[nn_item,user] != 0):
+                    norm_factor_item = norm_factor_item + 1./dist_item[i]
+                    knn_possible_item = True
+            
+            if(knn_possible_user and knn_possible_item):
+                rating_user = 0
+                rating_item = 0
+                for i in range(KNN):
+                    nn_user = points_index_user[i]
+                    nn_item = points_index_item[i]
+                    if(train_matrix[item,nn_user] != 0):
+                        dist_norm = 1./dist_user[i]
+                        weight = float(dist_norm)/float(norm_factor_user)
+                        rating_user = rating_user + weight*train_matrix[item,nn_user]
+                    if(train_matrix[nn_item,user] != 0):
+                        dist_norm = 1./dist_item[i]
+                        weight = float(dist_norm)/float(norm_factor_item)
+                        rating_item = rating_item + weight*train_matrix[nn_item,user]
+                #linear combination of both ratings of items and users
+                rating = rating_item*OPTIMAL_ALPHA + rating_user*(1-OPTIMAL_ALPHA)
+                predictions.append(rating)
+            
+            elif(knn_possible_user):
+                rating = 0
+                for i in range(KNN):
+                    nn_user = points_index_user[i]
+                    if(train_matrix[item,nn_user] != 0):
+                        dist_norm = 1./dist_user[i]
+                        weight = float(dist_norm)/float(norm_factor_user)
+                        rating = rating + weight*train_matrix[item,nn_user]
+                predictions.append(rating)
+            
+            elif(knn_possible_item):
+                rating = 0
+                for i in range(KNN):
+                    nn_item = points_index_item[i]
+                    if(train_matrix[nn_item,user] != 0):
+                        dist_norm = 1./dist_item[i]
+                        weight = float(dist_norm)/float(norm_factor_item)
+                        rating = rating + weight*train_matrix[nn_item,user]
+                predictions.append(rating)
+                
+            else:
+                rating = prediction_matrix[item,user]
+                if(rating > 5):
+                    rating = 5
+                elif(rating < 1):
+                    rating = 1
+                predictions.append(rating)
+            
+            if(j % 100000 == 0):
+                print "Predictions computing..." + str(float(j)/float(len(sorted_prediction_indices)))
+        
+            j = j + 1
+    else:
+        for prediction_index in sorted_prediction_indices:
+            rating = prediction_matrix[prediction_index[0],prediction_index[1]]
+            if(rating > 5):
+                rating = 5
+            elif(rating < 1):
+                rating = 1
+            
+            predictions.append(rating)
+    
+    
 print "Predictions ready."
 
 #generate prediction file
