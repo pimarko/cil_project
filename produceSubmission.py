@@ -10,17 +10,18 @@ import random
 import os.path
 from math import sqrt,pi,exp
 
-BEST_K = 5
+BEST_K = 96
 NMB_OF_TRAINING_ITERATIONS = 20000000
 LEARNING_RATE = 0.001
-SIGMA = 10
-ALPHA = 0.8
-SUBMISSION_FILENAME = "addBias_submission.csv"
+DO_NN = False
 USE_VALIDATION_SET = False
+REG_TERM = 0.01
+ALPHA = 0.8
+SUBMISSION_FILENAME = "improvedSGD_submission.csv"
 SHOW_RATING_STATS = True
 DO_LINEAR_COMBINATION_TEST = False
 TAKE_MIN_DIST_RATING = False
-DO_NN = False
+SIGMA = 0.5
 
 np.random.seed(500)
 
@@ -102,9 +103,6 @@ def sgd(x_dn,u_d,z_n,stepsize, reg_term):
     dotProd = np.dot(u_d,z_n)
 
     grad_u_d = -(x_dn-dotProd)*z_n + 2*reg_term*u_d
-    if (np.any(np.isnan(grad_u_d))):
-        print x_dn, u_d, z_n
-        sys.exit()
 
     grad_z_n = -(x_dn-dotProd)*u_d + 2*reg_term*z_n
 
@@ -112,6 +110,22 @@ def sgd(x_dn,u_d,z_n,stepsize, reg_term):
     z_n = z_n - stepsize*grad_z_n
 
     return u_d,z_n
+
+def improvedSGD(x_dn,u_d,z_n,c,d,stepsize, reg_term, reg_term2, global_mean):
+    dotProd = np.dot(u_d,z_n)
+
+    grad_u_d = -(x_dn-dotProd)*z_n + 2*reg_term*u_d
+
+    grad_z_n = -(x_dn-dotProd)*u_d + 2*reg_term*z_n
+
+    u_d = u_d - stepsize*grad_u_d
+    z_n = z_n - stepsize*grad_z_n
+
+    additive = stepsize*((x_dn-dotProd) - reg_term2*(c+d-global_mean))
+    c += additive
+    d += additive
+
+    return u_d,z_n,c,d
 
 def sgdBatch(x_dn,u_d,z_n,stepsize, reg_term):
     batchSize = len(x_dn)
@@ -187,6 +201,7 @@ if (not os.path.isfile("training_ids.npy") or not os.path.isfile("validation_ids
     np.save("validation_ids", validation_ids)
     np.save("test_ids", test_ids)
     np.save("train_matrix", train_matrix)
+    training_ids = np.asarray(training_ids)
 
 else:
     training_ids = np.load("training_ids.npy")
@@ -203,16 +218,21 @@ if (not os.path.isfile("U.npy") or not os.path.isfile("Z.npy")):
      
     U = np.random.rand(1000,BEST_K)
     Z = np.random.rand(10000,BEST_K)
+    c = np.random.rand(1000)
+    d = np.random.rand(10000)
+
+    global_mean = np.mean(training_ids[:,0,2])
+    print "global_mean:", global_mean
 
     j = 1 #initialization to zero will result in devide by zero 
     for rand_idx in rand_ids:
         training_id = training_ids[rand_idx]
         nz_item = training_id[0]
-        d = nz_item[0]
-        n = nz_item[1]
+        i_idx = nz_item[0]
+        u_idx = nz_item[1]
         rating = nz_item[2]
         
-        U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],LEARNING_RATE, 0)
+        U[i_idx,:],Z[u_idx,:],c[i_idx],d[u_idx] = improvedSGD(rating,U[i_idx,:],Z[u_idx,:],c[i_idx],d[u_idx],LEARNING_RATE, REG_TERM,0.05,global_mean)
 
         if (np.mod(j,500000) == 0):
             print j
@@ -220,11 +240,17 @@ if (not os.path.isfile("U.npy") or not os.path.isfile("Z.npy")):
 
     np.save("U", U)
     np.save("Z", Z)
+    np.save("c", c)
+    np.save("d", d)
+    print "c:",c
+    print "d:",d
     print "Optimization done."
 else:
     U = np.load("U.npy")
     Z = np.load("Z.npy")
-    print "U and Z from files"
+    c = np.load("c.npy")
+    d = np.load("d.npy")
+    print "loaded U and Z from files"
 
 
 #use the truncated prediction matrix (obtained by the best k singular values observed from the plot)
@@ -364,7 +390,7 @@ if (DO_NN):
         prevMovieIdx = movieIdx
 
         counter += 1
-        if (np.mod(counter, 1000) == 0):
+        if (np.mod(counter, 10000) == 0):
             print counter
             print final_rating
 
@@ -379,7 +405,7 @@ else:
         if (prevMovieIdx != movieIdx):
             meanMovieRating = np.sum(train_matrix[movieIdx,:])/np.count_nonzero(train_matrix[movieIdx,:])
 
-        predictions.append(ALPHA*prediction_matrix[movieIdx, userIdx] + (1-ALPHA)*meanMovieRating)
+        predictions.append(prediction_matrix[movieIdx, userIdx] + c[movieIdx] + d[userIdx])
 
         prevMovieIdx = movieIdx
 
