@@ -71,7 +71,7 @@ GENERATE_SUBMISSION = True
 BEST_K = 10
 KNN = 2
 LEARNING_RATE = 0.001
-NMB_OF_TRAINING_ITERATIONS = 2
+NMB_OF_TRAINING_ITERATIONS = 10000000
 SEED_NUM = 500
 REGULARIZATION_TERM = 0.000001
 EPS = 0.1
@@ -84,11 +84,12 @@ K = 120
 REG_TERMS = 5
 VALIDATION = True
 USE_KNN_ITEM_USER = True
-VALIDATION_SET_SIZE = 0.1
+VALIDATION_SET_SIZE = 0.2
 
 #do not modify parameters
 alphas = np.linspace(0,1,NUM_ALPHAS) 
 
+#used for sorting
 def get_key(item):
 	return item[1]
 	
@@ -180,6 +181,7 @@ print "Number of items in the training set: " + str(len(training_ids)) + "."
 rand_ids = np.random.choice(range(0,len(training_ids)), size=NMB_OF_TRAINING_ITERATIONS)
 print "Random ids collected"
 
+
 #grid search for optimal hyperparameteres k and reg. term using sgd algorithm. Uses validation set.
 if(GRID_SEARCH):
 	VALIDATION = True
@@ -197,7 +199,7 @@ if(GRID_SEARCH and VALIDATION):
             validate_err_prev = np.inf
             training_err_curr = np.inf
             training_err_prev = np.inf
-            for rand_idx in range(len(rand_ids)):
+            for rand_idx in xrange(len(rand_ids)):
                 training_id = training_ids[rand_ids[rand_idx]]
                 nz_item = training_id[0]
                 d = nz_item[0]
@@ -280,7 +282,7 @@ if(GENERATE_SUBMISSION and VALIDATION):
     validate_err_prev = np.inf
     training_err_curr = np.inf
     training_err_prev = np.inf
-    for rand_idx in range(len(rand_ids)):
+    for rand_idx in xrange(len(rand_ids)):
         training_id = training_ids[rand_ids[rand_idx]]
         nz_item = training_id[0]
         d = nz_item[0]
@@ -306,6 +308,11 @@ if(GENERATE_SUBMISSION and VALIDATION):
                 break
             else:
                 print "At iteration: " + str(j) + "."
+                print "Current validation error: " + str(validate_err_curr) + "."
+                print "Previous validation error: " + str(validate_err_prev) + "."
+
+                print "Current training error: " + str(training_err_curr) + "."
+                print "Previous training error: " + str(training_err_prev) + "."
 
         j = j + 1
 
@@ -499,7 +506,7 @@ if(GENERATE_SUBMISSION and (not VALIDATION)):
 	j = 1
 	training_err_curr = np.inf
 	training_err_prev = np.inf
-	for rand_idx in range(len(rand_ids)):
+	for rand_idx in xrange(len(rand_ids)):
 		training_id = training_ids[rand_ids[rand_idx]]
 		nz_item = training_id[0]
 		d = nz_item[0]
