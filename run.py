@@ -242,9 +242,6 @@ if(GRID_SEARCH and VALIDATION):
 
 
                 if (np.mod(j,500000) == 0 or j == 1):
-                    if(NORMALIZE_ITEM_USER):
-                        U = preprocessing.normalize(U, norm='l2')
-                        Z = preprocessing.normalize(Z, norm='l2')
 
                     prediction_matrix = np.dot(U,Z.T)
                     prediction_matrix = iround(prediction_matrix,ROUND,False)
@@ -264,9 +261,7 @@ if(GRID_SEARCH and VALIDATION):
                         print "At iteration: " + str(j) + "."
 
                 j = j + 1
-            if(NORMALIZE_ITEM_USER):
-                U = preprocessing.normalize(U, norm='l2')
-                Z = preprocessing.normalize(Z, norm='l2')
+           
             prediction_matrix = np.dot(U,Z.T)
             prediction_matrix = iround(prediction_matrix,ROUND,False)
             rmse[k,reg_term] = irmse(prediction_matrix,validation_ids)
@@ -333,9 +328,6 @@ if(GENERATE_SUBMISSION and VALIDATION):
 
 
         if (np.mod(j,500000) == 0 or j == 1):
-            if(NORMALIZE_ITEM_USER):
-                U = preprocessing.normalize(U, norm='l2')
-                Z = preprocessing.normalize(Z, norm='l2')
             prediction_matrix = np.dot(U,Z.T)
             prediction_matrix = iround(prediction_matrix,ROUND,False)
             validate_err_prev = validate_err_curr
@@ -359,9 +351,6 @@ if(GENERATE_SUBMISSION and VALIDATION):
                 print "Previous training error: " + str(training_err_prev) + "."
 
         j = j + 1
-    if(NORMALIZE_ITEM_USER):
-        U = preprocessing.normalize(U, norm='l2')
-        Z = preprocessing.normalize(Z, norm='l2')
     prediction_matrix = np.dot(U,Z.T)
     print "Optimization done."
     
@@ -375,6 +364,9 @@ if(GENERATE_SUBMISSION and VALIDATION):
     points_index_item = [[None for x in range(KNN_ITEM)] for y in range(1000)]
     dist_user = [[None for x in range(KNN_USER)] for y in range(10000)]
     dist_item = [[None for x in range(KNN_ITEM)] for y in range(1000)]
+    if(NORMALIZE_ITEM_USER):
+        U = preprocessing.normalize(U, norm='l2')
+        Z = preprocessing.normalize(Z, norm='l2')
     tree_user = KDTree(Z)
     tree_item = KDTree(U)
 
@@ -578,9 +570,6 @@ if(GENERATE_SUBMISSION and (not VALIDATION)):
 
 
         if (np.mod(j,500000) == 0 or j == 1):
-            if(NORMALIZE_ITEM_USER):
-                U = preprocessing.normalize(U, norm='l2')
-                Z = preprocessing.normalize(Z, norm='l2')
             prediction_matrix = np.dot(U,Z.T)
             prediction_matrix = iround(prediction_matrix,ROUND,False)
             training_err_prev = training_err_curr
@@ -595,9 +584,6 @@ if(GENERATE_SUBMISSION and (not VALIDATION)):
                 print "At iteration: " + str(j) + "."
 
         j = j + 1
-    if(NORMALIZE_ITEM_USER):
-        U = preprocessing.normalize(U, norm='l2')
-        Z = preprocessing.normalize(Z, norm='l2')
     prediction_matrix = np.dot(U,Z.T)
     print "Optimization done."
 
@@ -610,6 +596,9 @@ if(GENERATE_SUBMISSION and (not VALIDATION)):
         points_index_item = [[None for x in range(KNN_ITEM)] for y in range(1000)]
         dist_user = [[None for x in range(KNN_USER)] for y in range(10000)]
         dist_item = [[None for x in range(KNN_ITEM)] for y in range(1000)]
+        if(NORMALIZE_ITEM_USER):
+            U = preprocessing.normalize(U, norm='l2')
+            Z = preprocessing.normalize(Z, norm='l2')
         tree_user = KDTree(Z)
         tree_item = KDTree(U)
 
