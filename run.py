@@ -7,6 +7,7 @@ import sys
 import random
 import matplotlib
 from scipy.spatial import KDTree
+from sklearn import preprocessing
 
 """
 GENERATE_SUBMISSION:
@@ -61,6 +62,13 @@ on the whole data set.
 
 VALIDATION_SET_SIZE:
 Set to number between 0 and 1. Defines percentage of the dataset used for validating the model.
+
+ROUND:
+If True round to next nearest integer if sure that it should be the next one. E.g 3.2 rounded to 3; 3.8 rounded to 4; but everything in between not
+sure so it stays a float rating.
+
+NORMALIZE_ITEM_USER:
+Set to True to normalize the user and item vectors in the low dimensional space to unit length.
 """
 
 #constants to be adapted
@@ -69,8 +77,8 @@ GENERATE_SUBMISSION = True
 
 #optimal parameters
 BEST_K = 5
-KNN_ITEM = 999
-KNN_USER = 9999
+KNN_ITEM = 2
+KNN_USER = 2
 LEARNING_RATE = 0.001
 NMB_OF_TRAINING_ITERATIONS = 20000000
 SEED_NUM = 500
@@ -78,17 +86,40 @@ REGULARIZATION_TERM = 0.000001
 EPS = 0.1
 OPTIMAL_ALPHA = 0.5
 NUM_ALPHAS = 5
+ROUND = False
+NORMALIZE_ITEM_USER = False
 
 #training
 GRID_SEARCH = False
 K = 120
 REG_TERMS = 5
-VALIDATION = False
+VALIDATION = True
 USE_KNN_ITEM_USER = True
 VALIDATION_SET_SIZE = 0.2
 
 #do not modify parameters
 alphas = np.linspace(0,1,NUM_ALPHAS) 
+
+#round adapted to the problem. Round to next nearest integer if sure that it should be the next one. E.g 3.2 rounded to 3; 3.8 rounded to 4; but everything in between not
+#sure so it stays a float rating
+def iround(ratings,ROUND,is_scalar):
+    if(ROUND and (not is_scalar)):
+        zero_round = np.where(ratings.astype(int) == 0)
+        ratings[zero_round] = 1
+        indices_round_down = np.where((ratings%ratings.astype(int))<= 0.2)
+        indices_round_up = np.where((ratings%ratings.astype(int))>= 0.8)
+        ratings[indices_round_down] = ratings[indices_round_down].astype(int)
+        ratings[indices_round_up] = ratings[indices_round_up].astype(int) + 1
+    elif(ROUND and is_scalar):
+        if(int(ratings) == 0):
+            ratings = 1
+            return ratings
+        if(ratings%int(ratings) <= 0.2):
+            ratings = int(ratings)
+        elif(ratings%int(ratings) >= 0.8):
+            ratings= int(ratings) + 1
+
+    return ratings
 
 #used for sorting
 def get_key(item):
@@ -211,7 +242,12 @@ if(GRID_SEARCH and VALIDATION):
 
 
                 if (np.mod(j,500000) == 0 or j == 1):
+                    if(NORMALIZE_ITEM_USER):
+                        U = preprocessing.normalize(U, norm='l2')
+                        Z = preprocessing.normalize(Z, norm='l2')
+
                     prediction_matrix = np.dot(U,Z.T)
+                    prediction_matrix = iround(prediction_matrix,ROUND,False)
                     validate_err_prev = validate_err_curr
                     validate_err_curr = irmse(prediction_matrix,validation_ids)
                     training_err_prev = training_err_curr
@@ -228,8 +264,11 @@ if(GRID_SEARCH and VALIDATION):
                         print "At iteration: " + str(j) + "."
 
                 j = j + 1
-
+            if(NORMALIZE_ITEM_USER):
+                U = preprocessing.normalize(U, norm='l2')
+                Z = preprocessing.normalize(Z, norm='l2')
             prediction_matrix = np.dot(U,Z.T)
+            prediction_matrix = iround(prediction_matrix,ROUND,False)
             rmse[k,reg_term] = irmse(prediction_matrix,validation_ids)
         print "Done with regularization " + str((float(reg_term)/float(len(reg_terms)))*100) + "%"
 
@@ -294,7 +333,11 @@ if(GENERATE_SUBMISSION and VALIDATION):
 
 
         if (np.mod(j,500000) == 0 or j == 1):
+            if(NORMALIZE_ITEM_USER):
+                U = preprocessing.normalize(U, norm='l2')
+                Z = preprocessing.normalize(Z, norm='l2')
             prediction_matrix = np.dot(U,Z.T)
+            prediction_matrix = iround(prediction_matrix,ROUND,False)
             validate_err_prev = validate_err_curr
             validate_err_curr = irmse(prediction_matrix,validation_ids)
             training_err_prev = training_err_curr
@@ -316,7 +359,9 @@ if(GENERATE_SUBMISSION and VALIDATION):
                 print "Previous training error: " + str(training_err_prev) + "."
 
         j = j + 1
-
+    if(NORMALIZE_ITEM_USER):
+        U = preprocessing.normalize(U, norm='l2')
+        Z = preprocessing.normalize(Z, norm='l2')
     prediction_matrix = np.dot(U,Z.T)
     print "Optimization done."
     
@@ -413,7 +458,8 @@ if(GENERATE_SUBMISSION and VALIDATION):
             
                 if(j % 100000 == 0):
                     print "Predictions computing..." + str(float(j)/float(len(validation_ids)))
-            
+                
+                rating = iround(rating,ROUND,True)
                 error = error + (np.square(rating-item_rating))
                 j = j + 1
             
@@ -532,7 +578,11 @@ if(GENERATE_SUBMISSION and (not VALIDATION)):
 
 
         if (np.mod(j,500000) == 0 or j == 1):
+            if(NORMALIZE_ITEM_USER):
+                U = preprocessing.normalize(U, norm='l2')
+                Z = preprocessing.normalize(Z, norm='l2')
             prediction_matrix = np.dot(U,Z.T)
+            prediction_matrix = iround(prediction_matrix,ROUND,False)
             training_err_prev = training_err_curr
             training_err_curr = irmse(prediction_matrix,training_ids)
             if(training_err_prev < training_err_curr or training_err_curr < EPS):
@@ -545,7 +595,9 @@ if(GENERATE_SUBMISSION and (not VALIDATION)):
                 print "At iteration: " + str(j) + "."
 
         j = j + 1
-
+    if(NORMALIZE_ITEM_USER):
+        U = preprocessing.normalize(U, norm='l2')
+        Z = preprocessing.normalize(Z, norm='l2')
     prediction_matrix = np.dot(U,Z.T)
     print "Optimization done."
 
@@ -654,6 +706,8 @@ if(GENERATE_SUBMISSION and (not VALIDATION)):
 print "Predictions ready."
 
 #generate prediction file
+predictions = np.array(predictions)
+predictions = iround(predictions,ROUND,False)
 predictions_file = open("submissions/" + SUBMISSION_FILENAME, "wb")
 open_file_object = csv.writer(predictions_file)
 open_file_object.writerow(["Id","Prediction"])
