@@ -43,7 +43,7 @@ Set to number of regularization terms to be tested.
 EPS:
 For early abort. It training error falls under the value of eps.
 
-KNN:
+KNN_ITEM and KNN_USER:
 Set number of KNNs to be searched.
 
 VALIDATION:
@@ -64,11 +64,14 @@ VALIDATION_SET_SIZE:
 Set to number between 0 and 1. Defines percentage of the dataset used for validating the model.
 
 ROUND:
-If True round to next nearest integer if sure that it should be the next one. E.g 3.2 rounded to 3; 3.8 rounded to 4; but everything in between not
+If True round to next nearest integer if sure that it should be the next one. E.g 3.15 rounded to 3; 3.85 rounded to 4; but everything in between not
 sure so it stays a float rating.
 
 NORMALIZE_ITEM_USER:
 Set to True to normalize the user and item vectors in the low dimensional space to unit length.
+
+SET_EARLY_ABORT_RAISE:
+Set it to an integer of number of continously increasing validation scores allowed before aborting.
 """
 
 #constants to be adapted
@@ -77,16 +80,16 @@ GENERATE_SUBMISSION = True
 
 #optimal parameters
 BEST_K = 5
-KNN_ITEM = 2
-KNN_USER = 2
+KNN_ITEM = 999
+KNN_USER = 9999
 LEARNING_RATE = 0.001
-NMB_OF_TRAINING_ITERATIONS = 20000000
+NMB_OF_TRAINING_ITERATIONS = 100000000
 SEED_NUM = 500
 REGULARIZATION_TERM = 0.000001
 EPS = 0.1
 OPTIMAL_ALPHA = 0.5
 NUM_ALPHAS = 5
-ROUND = False
+ROUND = True
 NORMALIZE_ITEM_USER = False
 
 #training
@@ -96,27 +99,28 @@ REG_TERMS = 5
 VALIDATION = True
 USE_KNN_ITEM_USER = True
 VALIDATION_SET_SIZE = 0.2
+SET_EARLY_ABORT_RAISE = 4
 
 #do not modify parameters
 alphas = np.linspace(0,1,NUM_ALPHAS) 
 
-#round adapted to the problem. Round to next nearest integer if sure that it should be the next one. E.g 3.2 rounded to 3; 3.8 rounded to 4; but everything in between not
+#round adapted to the problem. Round to next nearest integer if sure that it should be the next one. E.g 3.15 rounded to 3; 3.85 rounded to 4; but everything in between not
 #sure so it stays a float rating
 def iround(ratings,ROUND,is_scalar):
     if(ROUND and (not is_scalar)):
         zero_round = np.where(ratings.astype(int) == 0)
         ratings[zero_round] = 1
-        indices_round_down = np.where((ratings%ratings.astype(int))<= 0.2)
-        indices_round_up = np.where((ratings%ratings.astype(int))>= 0.8)
+        indices_round_down = np.where((ratings%ratings.astype(int))<= 0.15)
+        indices_round_up = np.where((ratings%ratings.astype(int))>= 0.85)
         ratings[indices_round_down] = ratings[indices_round_down].astype(int)
         ratings[indices_round_up] = ratings[indices_round_up].astype(int) + 1
     elif(ROUND and is_scalar):
         if(int(ratings) == 0):
             ratings = 1
             return ratings
-        if(ratings%int(ratings) <= 0.2):
+        if(ratings%int(ratings) <= 0.1):
             ratings = int(ratings)
-        elif(ratings%int(ratings) >= 0.8):
+        elif(ratings%int(ratings) >= 0.9):
             ratings= int(ratings) + 1
 
     return ratings
@@ -231,6 +235,7 @@ if(GRID_SEARCH and VALIDATION):
             validate_err_prev = np.inf
             training_err_curr = np.inf
             training_err_prev = np.inf
+            count_raise = 0
             for rand_idx in xrange(len(rand_ids)):
                 training_id = training_ids[rand_ids[rand_idx]]
                 nz_item = training_id[0]
@@ -247,6 +252,7 @@ if(GRID_SEARCH and VALIDATION):
                     prediction_matrix = iround(prediction_matrix,ROUND,False)
                     validate_err_prev = validate_err_curr
                     validate_err_curr = irmse(prediction_matrix,validation_ids)
+
                     training_err_prev = training_err_curr
                     training_err_curr = irmse(prediction_matrix,training_ids)
                     if(validate_err_prev  < validate_err_curr or training_err_prev < training_err_curr or training_err_curr < EPS):
@@ -256,9 +262,14 @@ if(GRID_SEARCH and VALIDATION):
 
                         print "Current training error: " + str(training_err_curr) + "."
                         print "Previous training error: " + str(training_err_prev) + "."
-                        break
+
+                        if(count_raise < SET_EARLY_ABORT_RAISE):
+                            count_raise = count_raise + 1
+                        else:
+                            break
                     else:
                         print "At iteration: " + str(j) + "."
+                        count_raise = 0
 
                 j = j + 1
            
@@ -317,6 +328,7 @@ if(GENERATE_SUBMISSION and VALIDATION):
     validate_err_prev = np.inf
     training_err_curr = np.inf
     training_err_prev = np.inf
+    count_raise = 0
     for rand_idx in xrange(len(rand_ids)):
         training_id = training_ids[rand_ids[rand_idx]]
         nz_item = training_id[0]
@@ -341,7 +353,11 @@ if(GENERATE_SUBMISSION and VALIDATION):
 
                 print "Current training error: " + str(training_err_curr) + "."
                 print "Previous training error: " + str(training_err_prev) + "."
-                break
+                
+                if(count_raise < SET_EARLY_ABORT_RAISE):
+                    count_raise = count_raise + 1
+                else:
+                    break
             else:
                 print "At iteration: " + str(j) + "."
                 print "Current validation error: " + str(validate_err_curr) + "."
@@ -349,6 +365,8 @@ if(GENERATE_SUBMISSION and VALIDATION):
 
                 print "Current training error: " + str(training_err_curr) + "."
                 print "Previous training error: " + str(training_err_prev) + "."
+                count_raise = 0
+
 
         j = j + 1
     prediction_matrix = np.dot(U,Z.T)
@@ -559,6 +577,7 @@ if(GENERATE_SUBMISSION and (not VALIDATION)):
     j = 1
     training_err_curr = np.inf
     training_err_prev = np.inf
+    count_raise = 0
     for rand_idx in xrange(len(rand_ids)):
         training_id = training_ids[rand_ids[rand_idx]]
         nz_item = training_id[0]
@@ -579,9 +598,14 @@ if(GENERATE_SUBMISSION and (not VALIDATION)):
                
                 print "Current training error: " + str(training_err_curr) + "."
                 print "Previous training error: " + str(training_err_prev) + "."
-                break
+               
+                if(count_raise < SET_EARLY_ABORT_RAISE):
+                    count_raise = count_raise + 1
+                else:
+                    break
             else:
                 print "At iteration: " + str(j) + "."
+                count_raise = 0
 
         j = j + 1
     prediction_matrix = np.dot(U,Z.T)
