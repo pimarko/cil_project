@@ -114,7 +114,7 @@ def iround(ratings,ROUND,is_scalar):
     if(ROUND and (not is_scalar)):
         zero_round = np.where(ratings.astype(int) == 0)
         ratings[zero_round] = 1
-        indices_round_down = np.where((ratings%ratings.astype(int))<= 0.5)
+        indices_round_down = np.where((ratings%ratings.astype(int))<= 0.05)
         indices_round_up = np.where((ratings%ratings.astype(int))>= 0.95)
         ratings[indices_round_down] = ratings[indices_round_down].astype(int)
         ratings[indices_round_up] = ratings[indices_round_up].astype(int) + 1
@@ -122,9 +122,9 @@ def iround(ratings,ROUND,is_scalar):
         if(int(ratings) == 0):
             ratings = 1
             return ratings
-        if(ratings%int(ratings) <= 0.1):
+        if(ratings%int(ratings) <= 0.05):
             ratings = int(ratings)
-        elif(ratings%int(ratings) >= 0.9):
+        elif(ratings%int(ratings) >= 0.95):
             ratings= int(ratings) + 1
 
     return ratings
@@ -275,7 +275,7 @@ if(GRID_SEARCH and VALIDATION):
                 rating = nz_item[2]
                 
                 if(USE_IMPROVED_SGD):
-                    U[d,:],Z[n,:],b_u[0,n],b_i[d,0],mu = improved_sgd(rating,U[d,:],Z[n,:],b_u[n],b_i[d],mu,LEARNING_RATE, reg_terms[reg_term])
+                    U[d,:],Z[n,:],b_u[0,n],b_i[d,0],mu = improved_sgd(rating,U[d,:],Z[n,:],b_u[0,n],b_i[d,0],mu,LEARNING_RATE, reg_terms[reg_term])
                 else:
                     U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],LEARNING_RATE, reg_terms[reg_term])
 
