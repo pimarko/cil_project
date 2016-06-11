@@ -64,7 +64,7 @@ VALIDATION_SET_SIZE:
 Set to number between 0 and 1. Defines percentage of the dataset used for validating the model.
 
 ROUND:
-If True round to next nearest integer if sure that it should be the next one. E.g 3.15 rounded to 3; 3.85 rounded to 4; but everything in between not
+If True round to next nearest integer if sure that it should be the next one. E.g 3.05 rounded to 3; 3.95 rounded to 4; but everything in between not
 sure so it stays a float rating.
 
 NORMALIZE_ITEM_USER:
@@ -72,6 +72,9 @@ Set to True to normalize the user and item vectors in the low dimensional space 
 
 SET_EARLY_ABORT_RAISE:
 Set it to an integer of number of continously increasing validation scores allowed before aborting.
+
+USE_IMPROVED_SGD:
+Set it to True in roder to account for biases in the rating calculation: According to the Simon's Funk algorithm.
 """
 
 #constants to be adapted
@@ -82,20 +85,21 @@ GENERATE_SUBMISSION = True
 BEST_K = 5
 KNN_ITEM = 999
 KNN_USER = 9999
-LEARNING_RATE = 0.001
-NMB_OF_TRAINING_ITERATIONS = 100000000
+LEARNING_RATE = 0.005                                                                                                                                                                                                                                                                                            
+NMB_OF_TRAINING_ITERATIONS = 50000000
 SEED_NUM = 500
-REGULARIZATION_TERM = 0.000001
+REGULARIZATION_TERM = 0
 EPS = 0.1
 OPTIMAL_ALPHA = 0.5
 NUM_ALPHAS = 5
 ROUND = True
 NORMALIZE_ITEM_USER = False
+USE_IMPROVED_SGD = True
 
 #training
-GRID_SEARCH = False
-K = 120
-REG_TERMS = 5
+GRID_SEARCH = True
+K = 50
+REG_TERMS = 3
 VALIDATION = True
 USE_KNN_ITEM_USER = True
 VALIDATION_SET_SIZE = 0.2
@@ -104,14 +108,14 @@ SET_EARLY_ABORT_RAISE = 4
 #do not modify parameters
 alphas = np.linspace(0,1,NUM_ALPHAS) 
 
-#round adapted to the problem. Round to next nearest integer if sure that it should be the next one. E.g 3.15 rounded to 3; 3.85 rounded to 4; but everything in between not
+#round adapted to the problem. Round to next nearest integer if sure that it should be the next one. E.g 3.05 rounded to 3; 3.95 rounded to 4; but everything in between not
 #sure so it stays a float rating
 def iround(ratings,ROUND,is_scalar):
     if(ROUND and (not is_scalar)):
         zero_round = np.where(ratings.astype(int) == 0)
         ratings[zero_round] = 1
-        indices_round_down = np.where((ratings%ratings.astype(int))<= 0.15)
-        indices_round_up = np.where((ratings%ratings.astype(int))>= 0.85)
+        indices_round_down = np.where((ratings%ratings.astype(int))<= 0.5)
+        indices_round_up = np.where((ratings%ratings.astype(int))>= 0.95)
         ratings[indices_round_down] = ratings[indices_round_down].astype(int)
         ratings[indices_round_up] = ratings[indices_round_up].astype(int) + 1
     elif(ROUND and is_scalar):
@@ -145,20 +149,42 @@ def irmse(predicted_matrix,validation_ids):
     return np.sqrt(error/num_of_items)
 
 #calculate the sgd 
-def sgd(x_dn,u_d,z_n,stepsize, reg_term):
-    dotProd = np.dot(u_d,z_n)
+def sgd(x_dn,u_d,z_n,stepsize,reg_term):
+    dot_prod = np.dot(u_d,z_n)
 
-    grad_u_d = -(x_dn-dotProd)*z_n + 2*reg_term*u_d
+    grad_u_d = -1*(x_dn-dot_prod)*z_n + 2*reg_term*u_d
     if (np.any(np.isnan(grad_u_d))):
         print x_dn, u_d, z_n
         sys.exit()
 
-    grad_z_n = -(x_dn-dotProd)*u_d + 2*reg_term*z_n
+    grad_z_n = -1*(x_dn-dot_prod)*u_d + 2*reg_term*z_n
 
     u_d = u_d - stepsize*grad_u_d
     z_n = z_n - stepsize*grad_z_n
 
     return u_d,z_n
+
+def improved_sgd(x_dn,u_d,z_n,b_u,b_i,mu,stepsize,reg_term):
+    dot_prod =  np.dot(u_d,z_n)
+    p_dn = x_dn-(mu+b_i+b_u+dot_prod)
+
+    grad_u_d = -1*(p_dn)*z_n + 2*reg_term*u_d
+    if (np.any(np.isnan(grad_u_d))):
+        print x_dn, u_d, z_n
+        sys.exit()
+
+    grad_z_n = -1*(p_dn)*u_d + 2*reg_term*z_n
+    grad_b_u = -1*p_dn+2*reg_term*b_u
+    grad_b_i = -1*p_dn+2*reg_term*b_i
+    grad_mu = -1*p_dn+2*reg_term*mu
+
+    u_d = u_d - stepsize*grad_u_d
+    z_n = z_n - stepsize*grad_z_n
+    b_u = b_u - stepsize*grad_b_u
+    b_i = b_i - stepsize*grad_b_i
+    mu = mu - stepsize*grad_mu
+
+    return u_d,z_n,b_u,b_i,mu
 
 #set the seed to get determinism
 np.random.seed(SEED_NUM)
@@ -224,12 +250,17 @@ if(GRID_SEARCH):
 
 if(GRID_SEARCH and VALIDATION):
     k_search = np.linspace(1,K,K).astype(int)
-    reg_terms = np.linspace(0,0.1,REG_TERMS)
+    reg_terms = np.linspace(0,0.05,REG_TERMS)
     rmse = np.zeros((K,REG_TERMS))
     for reg_term in range(len(reg_terms)):
         for k in range(len(k_search)):
             U = np.random.rand(1000,k_search[k])
             Z = np.random.rand(10000,k_search[k])
+            if(USE_IMPROVED_SGD):
+                b_u = np.random.rand(1,10000)
+                b_i = np.random.rand(1000,1)
+                mu = np.random.rand(1)
+
             j = 1
             validate_err_curr = np.inf
             validate_err_prev = np.inf
@@ -243,12 +274,19 @@ if(GRID_SEARCH and VALIDATION):
                 n = nz_item[1]
                 rating = nz_item[2]
                 
-                U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],LEARNING_RATE, reg_terms[reg_term])
+                if(USE_IMPROVED_SGD):
+                    U[d,:],Z[n,:],b_u[0,n],b_i[d,0],mu = improved_sgd(rating,U[d,:],Z[n,:],b_u[n],b_i[d],mu,LEARNING_RATE, reg_terms[reg_term])
+                else:
+                    U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],LEARNING_RATE, reg_terms[reg_term])
 
 
                 if (np.mod(j,500000) == 0 or j == 1):
+                    if(USE_IMPROVED_SGD):
+                        prediction_matrix = np.dot(U,Z.T) + np.tile(b_u,(1000,1)) + np.tile(b_i,(1,10000)) + np.tile(mu,(1000,10000))
 
-                    prediction_matrix = np.dot(U,Z.T)
+                    else:
+                        prediction_matrix = np.dot(U,Z.T)
+
                     prediction_matrix = iround(prediction_matrix,ROUND,False)
                     validate_err_prev = validate_err_curr
                     validate_err_curr = irmse(prediction_matrix,validation_ids)
@@ -272,8 +310,13 @@ if(GRID_SEARCH and VALIDATION):
                         count_raise = 0
 
                 j = j + 1
-           
-            prediction_matrix = np.dot(U,Z.T)
+            
+            if(USE_IMPROVED_SGD):
+                prediction_matrix = np.dot(U,Z.T) + np.tile(b_u,(1000,1)) + np.tile(b_i,(1,10000)) + np.tile(mu,(1000,10000))
+
+            else:
+                prediction_matrix = np.dot(U,Z.T)
+
             prediction_matrix = iround(prediction_matrix,ROUND,False)
             rmse[k,reg_term] = irmse(prediction_matrix,validation_ids)
         print "Done with regularization " + str((float(reg_term)/float(len(reg_terms)))*100) + "%"
@@ -323,6 +366,10 @@ if(GENERATE_SUBMISSION and VALIDATION):
     #run the optimization
     U = np.random.rand(1000,BEST_K)
     Z = np.random.rand(10000,BEST_K)
+    if(USE_IMPROVED_SGD):
+        b_u = np.random.rand(1,10000)
+        b_i = np.random.rand(1000,1)
+        mu = np.random.rand(1)
     j = 1
     validate_err_curr = np.inf
     validate_err_prev = np.inf
@@ -336,11 +383,18 @@ if(GENERATE_SUBMISSION and VALIDATION):
         n = nz_item[1]
         rating = nz_item[2]
         
-        U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],LEARNING_RATE, REGULARIZATION_TERM)
-
+        if(USE_IMPROVED_SGD):
+            U[d,:],Z[n,:],b_u[0,n],b_i[d,0],mu = improved_sgd(rating,U[d,:],Z[n,:],b_u[0,n],b_i[d,0],mu,LEARNING_RATE, REGULARIZATION_TERM)
+        else:
+            U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],LEARNING_RATE, REGULARIZATION_TERM)
 
         if (np.mod(j,500000) == 0 or j == 1):
-            prediction_matrix = np.dot(U,Z.T)
+            if(USE_IMPROVED_SGD):
+                prediction_matrix = np.dot(U,Z.T) + np.tile(b_u,(1000,1)) + np.tile(b_i,(1,10000)) + np.tile(mu,(1000,10000))
+
+            else:
+                prediction_matrix = np.dot(U,Z.T)
+
             prediction_matrix = iround(prediction_matrix,ROUND,False)
             validate_err_prev = validate_err_curr
             validate_err_curr = irmse(prediction_matrix,validation_ids)
@@ -369,7 +423,11 @@ if(GENERATE_SUBMISSION and VALIDATION):
 
 
         j = j + 1
-    prediction_matrix = np.dot(U,Z.T)
+    if(USE_IMPROVED_SGD):
+        prediction_matrix = np.dot(U,Z.T) + np.tile(b_u,(1000,1)) + np.tile(b_i,(1,10000)) + np.tile(mu,(1000,10000))
+
+    else:
+        prediction_matrix = np.dot(U,Z.T)
     print "Optimization done."
     
     #NN(#data x #dim) algorithm on the user matrix Z. For a given user, find optimal n NN users and use weighted (normalized distances) 
@@ -574,6 +632,11 @@ if(GENERATE_SUBMISSION and (not VALIDATION)):
     #run the optimization
     U = np.random.rand(1000,BEST_K)
     Z = np.random.rand(10000,BEST_K)
+    if(USE_IMPROVED_SGD):
+        b_u = np.random.rand(1,10000)
+        b_i = np.random.rand(1000,1)
+        mu = np.random.rand(1)
+
     j = 1
     training_err_curr = np.inf
     training_err_prev = np.inf
@@ -585,11 +648,19 @@ if(GENERATE_SUBMISSION and (not VALIDATION)):
         n = nz_item[1]
         rating = nz_item[2]
         
-        U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],LEARNING_RATE, REGULARIZATION_TERM)
+        if(USE_IMPROVED_SGD):
+            U[d,:],Z[n,:],b_u[0,n],b_i[d,0],mu = improved_sgd(rating,U[d,:],Z[n,:],b_u[0,n],b_i[d,0],mu,LEARNING_RATE, REGULARIZATION_TERM)
+        else:
+            U[d,:],Z[n,:] = sgd(rating,U[d,:],Z[n,:],LEARNING_RATE, REGULARIZATION_TERM)
 
 
         if (np.mod(j,500000) == 0 or j == 1):
-            prediction_matrix = np.dot(U,Z.T)
+            if(USE_IMPROVED_SGD):
+               prediction_matrix = np.dot(U,Z.T) + np.tile(b_u,(1000,1)) + np.tile(b_i,(1,10000)) + np.tile(mu,(1000,10000))
+
+            else:
+                prediction_matrix = np.dot(U,Z.T)
+
             prediction_matrix = iround(prediction_matrix,ROUND,False)
             training_err_prev = training_err_curr
             training_err_curr = irmse(prediction_matrix,training_ids)
@@ -608,7 +679,12 @@ if(GENERATE_SUBMISSION and (not VALIDATION)):
                 count_raise = 0
 
         j = j + 1
-    prediction_matrix = np.dot(U,Z.T)
+    if(USE_IMPROVED_SGD):
+        prediction_matrix = np.dot(U,Z.T) + np.tile(b_u,(1000,1)) + np.tile(b_i,(1,10000)) + np.tile(mu,(1000,10000))
+
+    else:
+        prediction_matrix = np.dot(U,Z.T)
+
     print "Optimization done."
 
     predictions = []
