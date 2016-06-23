@@ -82,11 +82,11 @@ SUBMISSION_FILENAME = "inc_svd_knn_user_item_differentKNN_directPrediction_submi
 
 #optimal parameters
 BEST_K = 5
-KNN_ITEM = 10
-KNN_USER = 10
+KNN_ITEM = 999
+KNN_USER = 9999
 LEARNING_RATE = 0.001                                                                                                                                                                                                                                                                                            
-MAX_NMB_OF_TRAINING_ITERATIONS = 2000000
-NMB_OF_STEPS = 3
+MAX_NMB_OF_TRAINING_ITERATIONS = 20000000
+NMB_OF_STEPS = 20
 SEED_NUM = 500
 REGULARIZATION_TERM = 0
 EPS = 0.1
@@ -429,4 +429,15 @@ if(VALIDATION):
     np.save("validation_error_our", validation_error_our)
     np.save("validation_error_base", validation_error_base)
 
-    #TODO: plot
+    colors = []
+    for name, hex in matplotlib.colors.cnames.iteritems():
+        colors.append(str(name))
+
+    plt.plot(nmbOfIts, validation_error_our ,c = colors[0], label='neighborhood based')
+    plt.plot(nmbOfIts, validation_error_base ,c = colors[1], label='baseline')
+
+    plt.xlabel('number of training iterations')
+    plt.ylabel('validation score')
+    plt.legend()
+    plt.title('comparison of validation scores')
+    plt.show()
