@@ -1,0 +1,73 @@
+Running run.py produces the final Kaggle submission file. It predicts the missing ratings using the methids described in the report.
+Several constants might be changed to observe different performance and some provide the grid search of the optimal parameters.
+The current run.py constants configuration is the one producing the final Kaggle submission. The file plot.py plots the images used in the report.
+
+AUTHORS: Patrik Durrenberger and Marko Pichler Trauber 
+Kaggle team name: Erpelrotte
+
+
+GENERATE_SUBMISSION:
+Set to True to run the final optimization with the set BEST_K and generate the submission file uploaded on Kaggle.
+
+GRID_SEARCH:
+Set to true if still in search for the optimal number of concepts in our data. Produces a plot and the code exits right after.
+
+K:
+Number of concepts to check in the grid search for low rank approximation of the data matrix using the incremental SVD. 
+Max. K is 1000, as we have data matrix of rank 1000.
+
+BEST_K:
+Set the optimal number of concepts in the data according to the grid search plot obtained and set GENERATE_SUBMISSION to True.
+
+NMB_OF_TRAINING_ITERATIONS:
+Number of iterations is set, but the algorithm checks how the training and validation error behave. If the validation error starts to grow, it aborts. 
+If the training error achieves EPS error, it aborts (also provide sanity check that training error decreases).
+
+SEED_NUM:
+Seed num set to avoid stochastic nature of the optimization.
+
+LEARNING RATE:
+Learning rate is set fixed to 0.001. Due to potential overshooting of the minimum or too slow convergence, it might be dynamically adapted. We observe the
+validation error and well as training error behaviour to be ably to abort early. 
+
+REGULARIZATION_TERM:
+Set to optimal one obtained after the grid search.
+
+REG_TERMS:
+Set to number of regularization terms to be tested.
+
+EPS:
+For early abort. It training error falls under the value of eps.
+
+KNN_ITEM and KNN_USER:
+Set number of KNNs to be searched.
+
+VALIDATION:
+Set to True in order to validate our model. Set to False in order to use the whole dataset for training.
+
+USE_KNN_ITEM_USER:
+Set to True in order to obtain rating mixed from user and item neighbourhood information.
+
+NUM_ALPHAS:
+Set to number of alphas to search. 
+Used in alpha*item_rating_neighbourhood + (1-alpha)*user_rating_neighbourhood. Grid search for optimal alpha in alphas. EXPENSIVE!
+
+OPTIMAL_ALPHA:
+Set optimal alpha to the value observed while training on the training set and validating on the validation set. Set it to retrain the model
+on the whole data set.
+
+VALIDATION_SET_SIZE:
+Set to number between 0 and 1. Defines percentage of the dataset used for validating the model.
+
+ROUND:
+If True round to next nearest integer if sure that it should be the next one. E.g 3.05 rounded to 3; 3.95 rounded to 4; but everything in between not
+sure so it stays a float rating.
+
+NORMALIZE_ITEM_USER:
+Set to True to normalize the user and item vectors in the low dimensional space to unit length.
+
+SET_EARLY_ABORT_RAISE:
+Set it to an integer of number of continously increasing validation scores allowed before aborting.
+
+USE_IMPROVED_SGD:
+Set it to True in order to account for biases in the rating calculation: According to the Simon's Funk algorithm.
