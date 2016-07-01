@@ -1,6 +1,8 @@
 Running run.py produces the final Kaggle submission file. It predicts the missing ratings using the methids described in the report.
 Several constants might be changed to observe different performance and some provide the grid search of the optimal parameters.
 The current run.py constants configuration is the one producing the final Kaggle submission.
+File plot.py and project.py both produce the needed figures for the report and present our implemented solutions to the exercises.
+File run.py is the one used for the final submission and explained in the report.
 
 AUTHORS: Patrik Durrenberger and Marko Pichler Trauber 
 Kaggle team name: Erpelrotte
